@@ -10,8 +10,8 @@ Current Agent: Load a pretrained causal LLM and can call multiple tools during g
 Current SearchTool: retrieve document in pyserini index
 
 ```py
-from agent import Agent
-from tool import SearchTool
+from agents import Agent
+from tools import SearchTool
 question = 'what is the capital of France'
 tools = [SearchTool(name = 'search', index='robust04', start_token='boq', end_token='eoq')]
 agent = Agent( model = 'mymodel', tools = tools)
