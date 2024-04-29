@@ -1,5 +1,5 @@
-from agent import Agent
-from tool import SearchTool
+from agents import Agent
+from tools import SearchTool
 
 if __name__=='_main_':
 
