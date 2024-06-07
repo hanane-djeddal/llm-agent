@@ -66,15 +66,37 @@ def main():
 
     results = []
     for row in tqdm(dataset):
-        docids, docs_text, answer = agent.generate(row["query"] , **kwargs)
+        _, docs_text, answer = agent.generate(row["query"] , **kwargs)
+        docs = []
+        kept_docids = []
+        for statement_docs in docs_text:
+            for d in statement_docs:
+                doc = eval(d)
+                docid = doc["docid"]
+                if docid not in kept_docids:
+                    docs.append(doc)
+                    kept_docids.append(docid)
+
+        output = " ".join(parse(answer, '[ANSWER]', '[/ANSWER]'))
+        #### replace docids in answer by indices
+        for i in range(len(docs)):
+            if docs[i]["docid"] in output:
+                output = output.replace(docs[i]["docid"],str(i+1))
+        annotations = []
+        for a in row["gold_truth"]:
+            annotations["annotations"].append({"long_answer":a["answer"]})
+        if len(annotations) < 2:
+            annotations["annotations"].append({"long_answer":a["answer"]})
         results.append(
                     {
                         "query": row["query"],
                         "generated_text": answer,
-                        "docids": docids,
-                        "docs_text":docs_text,
+                        "output": output,
+                        "docs":docs,
                         "gold_truth": row["answers"],
                         "gold_quotes": row["quotes"],
+                        "answer": row["gold_truth"][0]["answer"],
+                        "annotations" :annotations,
                     }
                 )
     end = time.time()

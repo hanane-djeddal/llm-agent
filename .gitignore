@@ -7,6 +7,12 @@ __pycache__
 
 #notebooks
 .ipynb_checkpoints
+ALCE_data/.ipynb_checkpoints
+ALCE_data/wikipedia_embeddings
+ALCE_data/from_contriever
+ALCE_data/*.tsv
+ALCE_data/*.tar
+ALCE_data/*.json
 
 # outputs
 *.xlsx
