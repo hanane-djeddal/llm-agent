@@ -10,6 +10,7 @@ import src.data
 from src.evaluation import calculate_matches
 import src.normalize_text
 import os
+import json
 
 os.environ["HTTP_PROXY"] = "http://hacienda:3128"
 os.environ["HTTPS_PROXY"] = "http://hacienda:3128"
@@ -53,9 +54,11 @@ from tools import SearchTool
 from tools_alce import SearchToolALCE
 
 
-def main():
+def main(args=None):
     SEED = 42
     set_seed(SEED)
+    dataset_name = "ALCE"  # "HAGRID"   "ALCE"
+    input_file = "ALCE_data/datasets/asqa_eval_dpr_top100.json"
 
     config = PeftConfig.from_pretrained("erbacher/zephyr-rag-agent", load_in_8bit=True)
     model = AutoModelForCausalLM.from_pretrained(
@@ -77,22 +80,32 @@ def main():
             end_token="[/SEARCH]",
         )
     ]
+    # tools = [
+    #     SearchToolALCE(
+    #         name="search", start_token="[SEARCH]", end_token="[/SEARCH]", args=args
+    #     )
+    # ]
     agent = Agent(
         model=model,
         tokenizer=tokenizer,
         tools=tools,
-        rounds=4,
-        use_tools=False,
+        rounds=3,
+        use_tools=True,
         num_docs=2,
     )
 
     kwargs = {"do_sample": True, "top_p": 0.5, "max_new_tokens": 1000}
-
-    dataset = datasets.load_dataset("miracl/hagrid", split="dev")
+    if dataset_name == "HAGRID":
+        dataset = datasets.load_dataset("miracl/hagrid", split="dev")
+        query_column = "query"
+    else:
+        with open(input_file) as f:
+            dataset = json.load(f)
+        query_column = "question"
 
     results = []
     for row in tqdm(dataset):
-        _, docs_text, answer = agent.generate(row["query"], **kwargs)
+        _, docs_text, answer = agent.generate(row[query_column], **kwargs)
         docs = []
         kept_docids = []
         for statement_docs in docs_text:
@@ -108,28 +121,40 @@ def main():
         for i in range(len(docs)):
             if docs[i]["docid"] in output:
                 output = output.replace(docs[i]["docid"], str(i + 1))
-        annotations = []
-        for a in row["gold_truth"]:
-            annotations["annotations"].append({"long_answer": a["answer"]})
-        if len(annotations) < 2:
-            annotations["annotations"].append({"long_answer": a["answer"]})
-        results.append(
-            {
-                "query": row["query"],
-                "generated_text": answer,
-                "output": output,
-                "docs": docs,
-                "gold_truth": row["answers"],
-                "gold_quotes": row["quotes"],
-                "answer": row["gold_truth"][0]["answer"],
-                "annotations": annotations,
-            }
-        )
+        if dataset_name == "HAGRID":
+            annotations = []
+            for a in row["anwsers"]:
+                annotations["annotations"].append({"long_answer": a["answer"]})
+            if len(annotations) < 2:
+                annotations["annotations"].append({"long_answer": a["answer"]})
+            results.append(
+                {
+                    "query": row["query"],
+                    "generated_text": answer,
+                    "output": output,
+                    "docs": docs,
+                    "gold_truth": row["answers"],
+                    "gold_quotes": row["quotes"],
+                    "answer": row["answers"][0]["answer"],
+                    "annotations": annotations,
+                }
+            )
+        else:
+            results.append(
+                {
+                    "query": row[query_column],
+                    "generated_text": answer,
+                    "output": output,
+                    "docs": docs,
+                    "answer": row["answer"],
+                    "annotations": row["annotations"],
+                }
+            )
     end = time.time()
 
     execution_time = (end - start) / 60
     results_df = pd.DataFrame.from_dict(results)
-    results_file = "hagrid_dev_agent_noRetrieval_stopCNoToolDetectedmax4.csv"
+    results_file = "alce_asqa.csv"
     results_df.to_csv(results_file)
     print("Result file:", results_file)
     print("execution_time:", execution_time)
@@ -257,40 +282,42 @@ if __name__ == "__main__":
     args = parser.parse_args()
     src.slurm.init_distributed_mode(args)
 
-    config = PeftConfig.from_pretrained("erbacher/zephyr-rag-agent", load_in_8bit=True)
-    model = AutoModelForCausalLM.from_pretrained(
-        "HuggingFaceH4/zephyr-7b-beta", device_map="auto"
-    )
-    tokenizer = AutoTokenizer.from_pretrained("HuggingFaceH4/zephyr-7b-beta")
-    model = PeftModel.from_pretrained(
-        model,
-        "erbacher/zephyr-rag-agent",
-        device_map="auto",
-        revision="main",
-        force_download=True,
-    )
+    main(args)
 
-    model = model.merge_and_unload()
-    tools = [
-        SearchToolALCE(
-            name="search", start_token="[SEARCH]", end_token="[/SEARCH]", args=args
-        )
-    ]
-    agent = Agent(
-        model=model,
-        tokenizer=tokenizer,
-        tools=tools,
-        rounds=3,
-        use_tools=True,
-        num_docs=2,
-    )
-    kwargs = {"do_sample": True, "top_p": 0.5, "max_new_tokens": 1000}
-    _, _, answer = agent.generate("What was the first modern cruise ship?", **kwargs)
+    # config = PeftConfig.from_pretrained("erbacher/zephyr-rag-agent", load_in_8bit=True)
+    # model = AutoModelForCausalLM.from_pretrained(
+    #     "HuggingFaceH4/zephyr-7b-beta", device_map="auto"
+    # )
+    # tokenizer = AutoTokenizer.from_pretrained("HuggingFaceH4/zephyr-7b-beta")
+    # model = PeftModel.from_pretrained(
+    #     model,
+    #     "erbacher/zephyr-rag-agent",
+    #     device_map="auto",
+    #     revision="main",
+    #     force_download=True,
+    # )
 
-    a = parse(answer, "[ANSWER]", "[/ANSWER]")
-    q = parse(answer, "[SEARCH]", "[/SEARCH]")
-    print(a)
-    print(q)
-    print(answer)
+    # model = model.merge_and_unload()
+    # tools = [
+    #     SearchToolALCE(
+    #         name="search", start_token="[SEARCH]", end_token="[/SEARCH]", args=args
+    #     )
+    # ]
+    # agent = Agent(
+    #     model=model,
+    #     tokenizer=tokenizer,
+    #     tools=tools,
+    #     rounds=3,
+    #     use_tools=True,
+    #     num_docs=2,
+    # )
+    # kwargs = {"do_sample": True, "top_p": 0.5, "max_new_tokens": 1000}
+    # _, _, answer = agent.generate("What was the first modern cruise ship?", **kwargs)
+
+    # a = parse(answer, "[ANSWER]", "[/ANSWER]")
+    # q = parse(answer, "[SEARCH]", "[/SEARCH]")
+    # print(a)
+    # print(q)
+    # print(answer)
 # main()
 # test()
