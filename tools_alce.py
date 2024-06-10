@@ -1,3 +1,6 @@
+from typing import Any
+from pyserini.search.lucene import LuceneSearcher
+
 # Copyright (c) Facebook, Inc. and its affiliates.
 # All rights reserved.
 #
@@ -250,96 +253,79 @@ def load_data(data_path):
     return data
 
 
-def main(args):
-    # for debugging
-    # data_paths = glob.glob(args.data)
-    retriever = Retriever(args)
-    retriever.setup_retriever()
-    print(retriever.search_document(args.query, args.n_docs))
+class Tool:
+    def __init__(self, name, start_token, end_token):
+        self.name = name
+        self.start_token = start_token
+        self.end_token = end_token
+
+    def __call__(self, message, **kwargs):
+        """
+        This method allows calling the tool like a function with the message and optional keyword arguments.
+        """
+        tool_query = self.parse_last(message)
+        docids, doctext, tool_answer = self.process(tool_query, **kwargs)
+        return docids, doctext, message + tool_answer
+
+    def process(self, parsed_message, **kwargs):
+        """
+        This method defines the core functionality of the tool and can be overridden by subclasses.
+        """
+        raise NotImplementedError("Subclasses must implement the process method")
+
+    def parse(self, message):
+        """
+        This function parses a message to find all substrings between
+        a given begin_token and end_token.
+
+        Args:
+            message: The message to be parsed.
+            begin_token: The starting token (inclusive).
+            end_token: The ending token (inclusive).
+
+        Returns:
+            A list of all substrings found between the begin_token and end_token.
+        """
+        substrings = []
+        start_index = 0
+        while True:
+            begin_loc = message.find(self.start_token, start_index)
+            if begin_loc == -1:
+                break
+            end_loc = message.find(self.end_token, begin_loc + len(self.start_token))
+            if end_loc == -1:
+                break
+            substring = message[begin_loc + len(self.start_token) : end_loc]
+            substrings.append(substring)
+            start_index = end_loc + len(self.end_token)
+        return substrings
+
+    def parse_last(self, text):
+        return self.parse(text)[-1]
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
+class SearchToolALCE(Tool):
+    def __init__(
+        self,
+        name="search",
+        index="robust04",
+        start_token="[boq]",
+        end_token="[eoq]",
+        args=None,
+    ):
+        super().__init__(name=name, start_token=start_token, end_token=end_token)
+        self.docs_ids = []
+        self.args = args
+        retriever = Retriever(args)
+        retriever.setup_retriever()
 
-    parser.add_argument(
-        "--query",
-        type=str,
-        default=None,
-        help=".json file containing question and answers, similar format to reader data",
-    )
-    parser.add_argument(
-        "--passages", type=str, default=None, help="Path to passages (.tsv file)"
-    )
-    parser.add_argument(
-        "--passages_embeddings",
-        type=str,
-        default=None,
-        help="Glob path to encoded passages",
-    )
-    parser.add_argument(
-        "--output_dir",
-        type=str,
-        default=None,
-        help="Results are written to outputdir with data suffix",
-    )
-    parser.add_argument(
-        "--n_docs",
-        type=int,
-        default=100,
-        help="Number of documents to retrieve per questions",
-    )
-    parser.add_argument(
-        "--validation_workers",
-        type=int,
-        default=32,
-        help="Number of parallel processes to validate results",
-    )
-    parser.add_argument(
-        "--per_gpu_batch_size",
-        type=int,
-        default=64,
-        help="Batch size for question encoding",
-    )
-    parser.add_argument(
-        "--save_or_load_index",
-        action="store_true",
-        help="If enabled, save index and load index if it exists",
-    )
-    parser.add_argument(
-        "--model_name_or_path",
-        type=str,
-        help="path to directory containing model weights and config file",
-    )
-    parser.add_argument("--no_fp16", action="store_true", help="inference in fp32")
-    parser.add_argument(
-        "--question_maxlength",
-        type=int,
-        default=512,
-        help="Maximum number of tokens in a question",
-    )
-    parser.add_argument(
-        "--indexing_batch_size",
-        type=int,
-        default=1000000,
-        help="Batch size of the number of passages indexed",
-    )
-    parser.add_argument("--projection_size", type=int, default=768)
-    parser.add_argument(
-        "--n_subquantizers",
-        type=int,
-        default=0,
-        help="Number of subquantizer used for vector quantization, if 0 flat index is used",
-    )
-    parser.add_argument(
-        "--n_bits", type=int, default=8, help="Number of bits per subquantizer"
-    )
-    parser.add_argument("--lang", nargs="+")
-    parser.add_argument("--dataset", type=str, default="none")
-    parser.add_argument(
-        "--lowercase", action="store_true", help="lowercase text before encoding"
-    )
-    parser.add_argument("--normalize_text", action="store_true", help="normalize text")
+    def search(self, query, k=3):
 
-    args = parser.parse_args()
-    src.slurm.init_distributed_mode(args)
-    main(args)
+        ranked_doc = self.retriever.search_document(query, k)
+        docids = [i["id"] for i in ranked_doc]
+        docs_text = ranked_doc
+        return docids, docs_text
+
+    def process(self, query, **kwargs):
+        docids, docs_text = self.search(query, **kwargs)
+        return docids, docs_text, f"\n[DOCS] {docs_text} [/DOCS]\n"
