@@ -1,6 +1,7 @@
 from tqdm import tqdm
 import time
 import pandas as pd
+import json
 import argparse
 import src.index
 import src.contriever
@@ -9,8 +10,8 @@ import src.slurm
 import src.data
 from src.evaluation import calculate_matches
 import src.normalize_text
+
 import os
-import json
 
 os.environ["HTTP_PROXY"] = "http://hacienda:3128"
 os.environ["HTTPS_PROXY"] = "http://hacienda:3128"
@@ -19,6 +20,9 @@ from peft import PeftModel, PeftConfig
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import datasets
 from transformers import set_seed
+
+RAGAGENT_MODEL_NAME = "erbacher/zephyr-rag-agent"  # "erbacher/zephyr-rag-agent-webgpt"
+TRAINING_CORPUS = "HAGRID"
 
 
 def parse(message, begin, end):
@@ -42,32 +46,33 @@ def parse(message, begin, end):
             break
         end_loc = message.find(end, begin_loc + len(begin))
         if end_loc == -1:
-            break
-        substring = message[begin_loc + len(begin) : end_loc]
+            end_loc = len(message)
+        offset = 0
+        if message[begin_loc + len(begin)] == ":":
+            offset = 1
+        substring = message[begin_loc + len(begin) + offset : end_loc]
         substrings.append(substring)
         start_index = end_loc + len(end)
     return substrings
 
 
 from agent import Agent
-from tools import SearchTool
+from tools import SearchTool, SearchToolWithinDocs
 from tools_alce import SearchToolALCE
 
 
-def main(args=None):
+def main():
     SEED = 42
     set_seed(SEED)
-    dataset_name = "ALCE"  # "HAGRID"   "ALCE"
-    input_file = "ALCE_data/datasets/asqa_eval_dpr_top100.json"
+    dataset_name = "HAGRID"  # "HAGRID"   "ALCE"
+    input_file = None  # "ALCE_data/datasets/asqa_eval_dpr_top100.json"
 
-    config = PeftConfig.from_pretrained("erbacher/zephyr-rag-agent", load_in_8bit=True)
+    config = PeftConfig.from_pretrained(RAGAGENT_MODEL_NAME, load_in_8bit=True)
     model = AutoModelForCausalLM.from_pretrained(
         "HuggingFaceH4/zephyr-7b-beta", device_map="auto"
     )
     tokenizer = AutoTokenizer.from_pretrained("HuggingFaceH4/zephyr-7b-beta")
-    model = PeftModel.from_pretrained(
-        model, "erbacher/zephyr-rag-agent", device_map="auto"
-    )
+    model = PeftModel.from_pretrained(model, RAGAGENT_MODEL_NAME, device_map="auto")
 
     model = model.merge_and_unload()
 
@@ -80,21 +85,18 @@ def main(args=None):
             end_token="[/SEARCH]",
         )
     ]
-    # tools = [
-    #     SearchToolALCE(
-    #         name="search", start_token="[SEARCH]", end_token="[/SEARCH]", args=args
-    #     )
-    # ]
     agent = Agent(
         model=model,
         tokenizer=tokenizer,
         tools=tools,
-        rounds=3,
+        rounds=4,
         use_tools=True,
-        num_docs=2,
+        num_docs=3,
+        train_corpus="HAGRID",
     )
 
     kwargs = {"do_sample": True, "top_p": 0.5, "max_new_tokens": 1000}
+
     if dataset_name == "HAGRID":
         dataset = datasets.load_dataset("miracl/hagrid", split="dev")
         query_column = "query"
@@ -104,35 +106,29 @@ def main(args=None):
         query_column = "question"
 
     results = []
-    for row in tqdm(dataset):
-        _, docs_text, answer = agent.generate(row[query_column], **kwargs)
-        docs = []
-        kept_docids = []
-        for statement_docs in docs_text:
-            for d in statement_docs:
-                doc = eval(d)
-                docid = doc["docid"]
-                if docid not in kept_docids:
-                    docs.append(doc)
-                    kept_docids.append(docid)
+    for _, row in enumerate(tqdm(dataset)):
+        docs_text, answer = agent.generate(row[query_column], **kwargs)
+        parsed_answers = parse(answer, "[ANSWER]", "[/ANSWER]")
+        if parsed_answers:
+            output = " ".join(parsed_answers)
+        else:
+            position = answer.find("[ANSWER]")
 
-        output = " ".join(parse(answer, "[ANSWER]", "[/ANSWER]"))
-        #### replace docids in answer by indices
-        for i in range(len(docs)):
-            if docs[i]["docid"] in output:
-                output = output.replace(docs[i]["docid"], str(i + 1))
+            if position != -1:
+                start = position + len("[ANSWER]")
+                output = answer[start:]
         if dataset_name == "HAGRID":
             annotations = []
-            for a in row["anwsers"]:
-                annotations["annotations"].append({"long_answer": a["answer"]})
+            for a in row["answers"]:
+                annotations.append({"long_answer": a["answer"]})
             if len(annotations) < 2:
-                annotations["annotations"].append({"long_answer": a["answer"]})
+                annotations.append({"long_answer": a["answer"]})
             results.append(
                 {
-                    "query": row["query"],
+                    "question": row[query_column],
                     "generated_text": answer,
                     "output": output,
-                    "docs": docs,
+                    "docs": docs_text,
                     "gold_truth": row["answers"],
                     "gold_quotes": row["quotes"],
                     "answer": row["answers"][0]["answer"],
@@ -142,10 +138,10 @@ def main(args=None):
         else:
             results.append(
                 {
-                    "query": row[query_column],
+                    "question": row[query_column],
                     "generated_text": answer,
                     "output": output,
-                    "docs": docs,
+                    "docs": docs_text,
                     "answer": row["answer"],
                     "annotations": row["annotations"],
                 }
@@ -153,22 +149,24 @@ def main(args=None):
     end = time.time()
 
     execution_time = (end - start) / 60
-    results_df = pd.DataFrame.from_dict(results)
-    results_file = "alce_asqa.csv"
-    results_df.to_csv(results_file)
+    results_df = {"data": results}
+    # results_df = pd.DataFrame.from_dict(results)
+    # results_df.to_csv(results_file)
+    results_file = "agent_hagrid_3doc_4rounds.json"  # "agent_hagrid_3doc_2rounds.csv"
+    with open(results_file, "w") as writer:
+        json.dump(results_df, writer)
+
     print("Result file:", results_file)
     print("execution_time:", execution_time)
 
 
 def test():
-    config = PeftConfig.from_pretrained("erbacher/zephyr-rag-agent", load_in_8bit=True)
+    config = PeftConfig.from_pretrained(RAGAGENT_MODEL_NAME, load_in_8bit=True)
     model = AutoModelForCausalLM.from_pretrained(
         "HuggingFaceH4/zephyr-7b-beta", device_map="auto"
     )
     tokenizer = AutoTokenizer.from_pretrained("HuggingFaceH4/zephyr-7b-beta")
-    model = PeftModel.from_pretrained(
-        model, "erbacher/zephyr-rag-agent", device_map="auto"
-    )
+    model = PeftModel.from_pretrained(model, RAGAGENT_MODEL_NAME, device_map="auto")
 
     model = model.merge_and_unload()
     tools = [
@@ -184,24 +182,30 @@ def test():
         tokenizer=tokenizer,
         tools=tools,
         rounds=4,
-        use_tools=False,
+        use_tools=True,
         num_docs=2,
+        train_corpus="WEBGPT",
     )
     kwargs = {"do_sample": True, "top_p": 0.5, "max_new_tokens": 1000}
-    _, _, answer = agent.generate("What was the first modern cruise ship?", **kwargs)
+    docs, answer = agent.generate("What was the first modern cruise ship?", **kwargs)
 
     a = parse(answer, "[ANSWER]", "[/ANSWER]")
     q = parse(answer, "[SEARCH]", "[/SEARCH]")
-    print(a)
-    print(q)
+    # docs = parse(answer, "[DOCS]", "[/DOCS]")
+    print("answer", a)
+    print("queries", q)
     print(answer)
+    print(docs[0])
 
 
-if __name__ == "__main__":
+def alce_data():
+    SEED = 42
+    set_seed(SEED)
     parser = argparse.ArgumentParser()
+    dataset_name = "ALCE"  # "HAGRID"   "ALCE"
 
     parser.add_argument(
-        "--query",
+        "--query_file",
         type=str,
         default=None,
         help=".json file containing question and answers, similar format to reader data",
@@ -281,43 +285,243 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     src.slurm.init_distributed_mode(args)
+    tools = [
+        SearchToolALCE(
+            name="search", start_token="[SEARCH]", end_token="[/SEARCH]", args=args
+        )
+    ]
 
-    main(args)
+    config = PeftConfig.from_pretrained(RAGAGENT_MODEL_NAME, load_in_8bit=True)
+    model = AutoModelForCausalLM.from_pretrained(
+        "HuggingFaceH4/zephyr-7b-beta", device_map="auto"
+    )
+    tokenizer = AutoTokenizer.from_pretrained("HuggingFaceH4/zephyr-7b-beta")
+    model = PeftModel.from_pretrained(model, RAGAGENT_MODEL_NAME, device_map="auto")
 
-    # config = PeftConfig.from_pretrained("erbacher/zephyr-rag-agent", load_in_8bit=True)
-    # model = AutoModelForCausalLM.from_pretrained(
-    #     "HuggingFaceH4/zephyr-7b-beta", device_map="auto"
-    # )
-    # tokenizer = AutoTokenizer.from_pretrained("HuggingFaceH4/zephyr-7b-beta")
-    # model = PeftModel.from_pretrained(
-    #     model,
-    #     "erbacher/zephyr-rag-agent",
-    #     device_map="auto",
-    #     revision="main",
-    #     force_download=True,
-    # )
+    model = model.merge_and_unload()
 
-    # model = model.merge_and_unload()
-    # tools = [
-    #     SearchToolALCE(
-    #         name="search", start_token="[SEARCH]", end_token="[/SEARCH]", args=args
-    #     )
-    # ]
-    # agent = Agent(
-    #     model=model,
-    #     tokenizer=tokenizer,
-    #     tools=tools,
-    #     rounds=3,
-    #     use_tools=True,
-    #     num_docs=2,
-    # )
-    # kwargs = {"do_sample": True, "top_p": 0.5, "max_new_tokens": 1000}
-    # _, _, answer = agent.generate("What was the first modern cruise ship?", **kwargs)
+    agent = Agent(
+        model=model,
+        tokenizer=tokenizer,
+        tools=tools,
+        rounds=5,
+        use_tools=True,
+        num_docs=3,
+        train_corpus="HAGRID",
+    )
 
-    # a = parse(answer, "[ANSWER]", "[/ANSWER]")
-    # q = parse(answer, "[SEARCH]", "[/SEARCH]")
-    # print(a)
-    # print(q)
-    # print(answer)
-# main()
-# test()
+    kwargs = {"do_sample": True, "top_p": 0.5, "max_new_tokens": 1000}
+
+    if dataset_name == "HAGRID":
+        dataset = datasets.load_dataset("miracl/hagrid", split="dev")
+        query_column = "query"
+    else:
+        with open(args.query_file) as f:
+            dataset = json.load(f)
+        query_column = "question"
+
+    start = time.time()
+    results = []
+    for _, row in enumerate(tqdm(dataset)):
+        docs_text, answer = agent.generate(row[query_column], **kwargs)
+        docs = []
+        kept_docids = []
+        for statement_docs in docs_text:
+            for doc in statement_docs:
+                docid = doc["docid"]
+                if docid not in kept_docids:
+                    doc["indice"] = len(docs) + 1
+                    docs.append(doc)
+                    kept_docids.append(docid)
+
+        parsed_answers = parse(answer, "[ANSWER]", "[/ANSWER]")
+        if parsed_answers:
+            output = " ".join(parsed_answers)
+        else:
+            position = answer.find("[ANSWER]")
+
+            if position != -1:
+                start = position + len("[ANSWER]")
+                output = answer[start:]
+        #### replace docids in answer by indices
+        for i in range(len(docs)):
+            if docs[i]["docid"] in output:
+                output = output.replace(docs[i]["docid"], str(i + 1))
+
+        if dataset_name == "HAGRID":
+            annotations = []
+            for a in row["answers"]:
+                annotations.append({"long_answer": a["answer"]})
+            if len(annotations) < 2:
+                annotations.append({"long_answer": a["answer"]})
+
+            row["output"] = output
+            row["docs"] = docs
+            row["generated_text"] = answer
+            row["answer"] = row["answers"][0]["answer"]
+            row["annotations"] = annotations
+            results.append(row)
+        else:
+            row["output"] = output
+            row["docs"] = docs
+            row["generated_text"] = answer
+            results.append(row)
+    end = time.time()
+
+    execution_time = (end - start) / 60
+    results_df = {"data": results}
+    # results_df = pd.DataFrame.from_dict(results)
+    # results_df.to_csv(results_file)
+    results_file = (
+        "agent_alce_asqa_3doc_5rounds_trainH.json"  # "agent_hagrid_3doc_2rounds.csv"
+    )
+    with open(results_file, "w") as writer:
+        json.dump(results_df, writer)
+
+    print("Result file:", results_file)
+    print("execution_time:", execution_time)
+
+
+def test_alce_docs_gtr():
+    SEED = 42
+    set_seed(SEED)
+    parser = argparse.ArgumentParser()
+    dataset_name = "ALCE"  # "HAGRID"   "ALCE"    args = parser.parse_args()
+
+    parser.add_argument(
+        "--query_file",
+        type=str,
+        default=None,
+        help=".json file containing question and answers, similar format to reader data",
+    )
+    parser.add_argument(
+        "--output_dir",
+        type=str,
+        default=None,
+        help="Results are written to outputdir with data suffix",
+    )
+    args = parser.parse_args()
+    src.slurm.init_distributed_mode(args)
+    tools = [
+        SearchToolWithinDocs(
+            name="search", start_token="[SEARCH]", end_token="[/SEARCH]"
+        )
+    ]
+
+    config = PeftConfig.from_pretrained(
+        RAGAGENT_MODEL_NAME, load_in_8bit=True, force_download=True
+    )
+    model = AutoModelForCausalLM.from_pretrained(
+        "HuggingFaceH4/zephyr-7b-beta", device_map="auto"
+    )
+    tokenizer = AutoTokenizer.from_pretrained("HuggingFaceH4/zephyr-7b-beta")
+    model = PeftModel.from_pretrained(
+        model, RAGAGENT_MODEL_NAME, device_map="auto", force_download=True
+    )
+
+    model = model.merge_and_unload()
+
+    agent = Agent(
+        model=model,
+        tokenizer=tokenizer,
+        tools=tools,
+        rounds=5,
+        use_tools=True,
+        num_docs=3,
+        train_corpus=TRAINING_CORPUS,
+    )
+
+    kwargs = {"do_sample": True, "top_p": 0.5, "max_new_tokens": 1000}
+
+    if dataset_name == "HAGRID":
+        dataset = datasets.load_dataset("miracl/hagrid", split="dev")
+        query_column = "query"
+    else:
+        with open(args.query_file) as f:
+            dataset = json.load(f)
+        query_column = "question"
+
+    start = time.time()
+    results = []
+    for itera, row in enumerate(tqdm(dataset)):
+        docs_text, scores, answer = agent.generate(
+            row[query_column], docs=row["docs"], **kwargs
+        )
+        docids_per_sub_query = []
+        if TRAINING_CORPUS == "HAGRID":
+            docs = []
+            kept_docids = []
+            for statement_docs in docs_text:
+                docids = []
+                for doc in statement_docs:
+                    docids.append(doc["docid"])
+                    docid = doc["docid"]
+                    if docid not in kept_docids:
+                        doc["indice"] = len(docs) + 1
+                        docs.append(doc)
+                        kept_docids.append(docid)
+            docids_per_sub_query.append(docids)
+        else:
+            docs = docs_text
+
+        parsed_answers = parse(answer, "[ANSWER]", "[/ANSWER]")
+        if parsed_answers:
+            output = " ".join(parsed_answers)
+        else:
+            position = answer.find("[ANSWER]")
+
+            if position != -1:
+                start = position + len("[ANSWER]")
+                output = answer[start:]
+        #### replace docids in answer by indices
+        if TRAINING_CORPUS == "HAGRID":
+            for i in range(len(docs)):
+                if docs[i]["docid"] in output:
+                    output = output.replace(docs[i]["docid"], str(i + 1))
+
+        if dataset_name == "HAGRID":
+            annotations = []
+            for a in row["answers"]:
+                annotations.append({"long_answer": a["answer"]})
+            if len(annotations) < 2:
+                annotations.append({"long_answer": a["answer"]})
+
+            row["output"] = output
+            row["docs"] = docs
+            row["generated_text"] = answer
+            row["answer"] = row["answers"][0]["answer"]
+            row["annotations"] = annotations
+            row["scores"] = scores
+            row["docids_per_sub_query"] = docids_per_sub_query
+            results.append(row)
+        else:
+            row["output"] = output
+            row["docs"] = docs
+            row["scores"] = scores
+            row["generated_text"] = answer
+            results.append(row)
+    end = time.time()
+
+    execution_time = (end - start) / 60
+    results_df = {"data": results}
+    # results_df = pd.DataFrame.from_dict(results)
+    # results_df.to_csv(results_file)
+    results_file = (
+        args.output_dir
+        if args.output_dir
+        else (
+            "agent_alce_asqa_3doc_rerank_GTR_5rounds_hagrid.json"  # "agent_hagrid_3doc_2rounds.csv"
+        )
+    )
+    with open(results_file, "w") as writer:
+        json.dump(results_df, writer)
+
+    print("Result file:", results_file)
+    print("execution_time:", execution_time)
+
+
+if __name__ == "__main__":
+    # main()
+    # alce_data()
+    # test()
+    test_alce_docs_gtr()

@@ -10,14 +10,22 @@ class StoppingCriteriaSub(StoppingCriteria):
 
     def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor):
         for stop in self.stops:
-            if torch.all((stop == input_ids[0][-len(stop) :])).item():
+            if torch.all((stop[1:] == input_ids[0][-len(stop) + 1 :])).item():
                 return True
-
         return False
 
 
 class Agent:
-    def __init__(self, model, tokenizer, tools, rounds=6, use_tools=True, num_docs=2):
+    def __init__(
+        self,
+        model,
+        tokenizer,
+        tools,
+        rounds=6,
+        use_tools=True,
+        num_docs=2,
+        train_corpus="HAGRID",
+    ):
 
         self.model = model
         self.tokenizer = tokenizer
@@ -26,6 +34,7 @@ class Agent:
         self.rounds = rounds
         self.num_docs = num_docs
         self.use_tools = use_tools
+        self.train_corpus = train_corpus
         stop_words = self.get_stop_token()
         stop_words_ids = [
             self.tokenizer(stop_word, return_tensors="pt", add_special_tokens=False)[
@@ -64,15 +73,15 @@ class Agent:
             list_end_gen.append(tool.end_token)
         return list_end_gen
 
-    def generate(self, question, **kwargs):
-        print("In generate")
+    def generate(self, question, docs=None, **kwargs):
+        all_docs = []
+        all_scores = []
+        used_docids = {}
         message = [{"role": "user", "content": question}]
         inputs = self.tokenizer.apply_chat_template(
             message, tokenize=True, add_generation_prompt=True, return_tensors="pt"
         )
         last_gen = 0
-        all_docids = []
-        all_docs_text = []
         for i in range(self.rounds):
             output = self.model.generate(
                 inputs.to(self.model.device),
@@ -85,12 +94,29 @@ class Agent:
             tool_id = self.detect_tool(cuurent_output)
             if tool_id is not None:
                 if self.use_tools:
-                    docids, docs_text, inputs = self.tools[tool_id](
-                        output, k=self.num_docs
-                    )
-                    print("docids, docs_text, inputs", docids, docs_text, inputs)
-                    all_docids.append(docids)
-                    all_docs_text.append(docs_text)
+                    if docs:
+                        docs_text, scores, inputs = self.tools[tool_id](
+                            output, k=self.num_docs, initial_docs=docs
+                        )
+                    else:
+                        docs_text, scores, inputs = self.tools[tool_id](
+                            output, k=self.num_docs
+                        )
+                    all_scores.append(scores)
+                    ### replcaing docids with indices
+                    if self.train_corpus == "WEBGPT":
+                        for doc in docs_text:
+                            docid = doc["docid"]
+                            if docid not in used_docids:
+                                used_docids[docid] = len(used_docids) + 1
+                                doc["indice"] = used_docids[docid]
+                                all_docs.append(doc)
+                                inputs = inputs.replace(
+                                    str(docid), str(used_docids[docid])
+                                )
+                    else:
+                        all_docs.append(docs_text)
+
                 else:
                     ### without retrieval
                     inputs = output + f"\n[DOCS] {[]} [/DOCS]\n"
@@ -99,4 +125,4 @@ class Agent:
                 )["input_ids"]
             else:
                 break
-        return all_docids, all_docs_text, output
+        return all_docs, all_scores, output

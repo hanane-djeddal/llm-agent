@@ -3,6 +3,8 @@ from pyserini.search.lucene import LuceneSearcher
 import torch
 import transformers
 import numpy as np
+import copy
+
 
 def batch(docs: list, nb: int = 10):
     batches = []
@@ -100,7 +102,8 @@ class MonoT5:
             for doc, score in zip(b, batch_log_probs):
                 doc["score"] = score  # dont update, only used as Initial with query
         return docs
-    
+
+
 class Tool:
     def __init__(self, name, start_token, end_token):
         self.name = name
@@ -112,8 +115,8 @@ class Tool:
         This method allows calling the tool like a function with the message and optional keyword arguments.
         """
         tool_query = self.parse_last(message)
-        docids, doctext, tool_answer = self.process(tool_query, **kwargs)
-        return docids, doctext, message + tool_answer
+        doctext, scores, tool_answer = self.process(tool_query, **kwargs)
+        return doctext, scores, message + tool_answer
 
     def process(self, parsed_message, **kwargs):
         """
@@ -143,7 +146,7 @@ class Tool:
             end_loc = message.find(self.end_token, begin_loc + len(self.start_token))
             if end_loc == -1:
                 break
-            substring = message[begin_loc + len(self.start_token):end_loc]
+            substring = message[begin_loc + len(self.start_token) : end_loc]
             substrings.append(substring)
             start_index = end_loc + len(self.end_token)
         return substrings
@@ -153,24 +156,62 @@ class Tool:
 
 
 class SearchTool(Tool):
-    def __init__(self, name = "search", index = 'robust04' , start_token="[boq]", end_token="[eoq]" ):
+    def __init__(
+        self, name="search", index="robust04", start_token="[boq]", end_token="[eoq]"
+    ):
         super().__init__(name=name, start_token=start_token, end_token=end_token)
         self.docs_ids = []
         self.searcher = LuceneSearcher.from_prebuilt_index(index)
-        self.ranker = MonoT5(device='cuda')
+        self.ranker = MonoT5(device="cuda")
 
-    def search( self, query, k=3):
+    def search(self, query, k=3):
         docs = self.searcher.search(query, k=100)
         retrieved_docid = [i.docid for i in docs]
-        docs_text = [eval(self.searcher.doc(docid).raw()) for j, docid  in enumerate(retrieved_docid)]
+        docs_text = [
+            eval(self.searcher.doc(docid).raw())
+            for j, docid in enumerate(retrieved_docid)
+        ]
         ranked_doc = self.ranker.rerank(query, docs_text)[:k]
-        docids = [i['docid'] for i in ranked_doc]
-        docs_text = [self.searcher.doc(docid).raw() for j, docid  in enumerate(docids)]
-        return docids, docs_text
+        docids = [i["docid"] for i in ranked_doc]
+        scores = [i["score"] for i in ranked_doc]
+        docs_text = [
+            eval(self.searcher.doc(docid).raw()) for j, docid in enumerate(docids)
+        ]
+
+        return docs_text, scores
 
     def process(self, query, **kwargs):
-        docids, docs_text = self.search(query , **kwargs)
-        return docids, docs_text , f"\n[DOCS] {docs_text} [/DOCS]\n"
+        docs_text, scores = self.search(query, **kwargs)
+        return docs_text, scores, f"\n[DOCS] {docs_text} [/DOCS]\n"
 
 
+class SearchToolWithinDocs(Tool):
+    def __init__(self, name="search", start_token="[boq]", end_token="[eoq]"):
+        super().__init__(name=name, start_token=start_token, end_token=end_token)
+        self.docs_ids = []
+        self.ranker = MonoT5(device="cuda")
 
+    def search(self, query, k=3, initial_docs=[]):
+        ranked_doc = self.ranker.rerank(query, initial_docs)[:k]
+        scores = [i["score"] for i in ranked_doc]
+        docs = []
+        for doc in ranked_doc:
+            if "id" in doc.keys():
+                added_docid = {"docid": doc["id"]}
+                doc = {**added_docid, **doc}
+                del doc["id"]
+                if "summary" in doc.keys():
+                    del doc["summary"]
+                if "extraction" in doc.keys():
+                    del doc["extraction"]
+                if "score" in doc.keys():
+                    del doc["score"]
+            else:
+                print("keys", doc.keys())
+            docs.append(doc)
+
+        return docs, scores
+
+    def process(self, query, **kwargs):
+        docs_text, scores = self.search(query, **kwargs)
+        return docs_text, scores, f"\n[DOCS] {docs_text} [/DOCS]\n"

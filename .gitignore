@@ -26,4 +26,9 @@ ALCE_data/*.json
 *.out
 *.log
 *.bat
+*.score
+*.ipynb
+
+# test files
+test_alce_old.py
 

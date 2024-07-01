@@ -14,6 +14,7 @@ import pickle
 import time
 import glob
 from pathlib import Path
+import copy
 
 import numpy as np
 import torch
@@ -264,8 +265,8 @@ class Tool:
         This method allows calling the tool like a function with the message and optional keyword arguments.
         """
         tool_query = self.parse_last(message)
-        docids, doctext, tool_answer = self.process(tool_query, **kwargs)
-        return docids, doctext, message + tool_answer
+        doctext, scores, tool_answer = self.process(tool_query, **kwargs)
+        return doctext, scores, message + tool_answer
 
     def process(self, parsed_message, **kwargs):
         """
@@ -316,16 +317,24 @@ class SearchToolALCE(Tool):
         super().__init__(name=name, start_token=start_token, end_token=end_token)
         self.docs_ids = []
         self.args = args
-        retriever = Retriever(args)
-        retriever.setup_retriever()
+        self.retriever = Retriever(args)
+        self.retriever.setup_retriever()
 
     def search(self, query, k=3):
 
         ranked_doc = self.retriever.search_document(query, k)
-        docids = [i["id"] for i in ranked_doc]
-        docs_text = ranked_doc
-        return docids, docs_text
+        scores = [i["score"] for i in ranked_doc]
+        docs = []
+        for doc in ranked_doc:
+            if "id" in doc.keys():
+                added_docid = {"docid": doc["id"]}
+                doc = {**added_docid, **doc}
+                del doc["id"]
+            else:
+                print("keys", doc.keys())
+            docs.append(doc)
+        return docs, scores
 
     def process(self, query, **kwargs):
-        docids, docs_text = self.search(query, **kwargs)
-        return docids, docs_text, f"\n[DOCS] {docs_text} [/DOCS]\n"
+        docs_text, scores = self.search(query, **kwargs)
+        return copy.deepcopy(docs_text), scores, f"\n[DOCS] {docs_text} [/DOCS]\n"
