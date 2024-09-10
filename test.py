@@ -13,16 +13,16 @@ import src.normalize_text
 
 import os
 
-os.environ["HTTP_PROXY"] = "http://hacienda:3128"
-os.environ["HTTPS_PROXY"] = "http://hacienda:3128"
-
+#os.environ["HTTP_PROXY"] = "http://hacienda:3128"
+#os.environ["HTTPS_PROXY"] = "http://hacienda:3128"
+os.environ['HF_HOME'] = os.environ['WORK'] + '/.cache/huggingface'
 from peft import PeftModel, PeftConfig
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import datasets
 from transformers import set_seed
 
-RAGAGENT_MODEL_NAME = "erbacher/zephyr-rag-agent"  # "erbacher/zephyr-rag-agent-webgpt"
-TRAINING_CORPUS = "HAGRID"
+RAGAGENT_MODEL_NAME ="/linkhome/rech/geniri01/udo61qq/Code/llm-jz/data/zephyr-hagrid-rag-agent-3b/" #zephyr-hagrid-deduplicated-rag-agent-3b" #zephyr-hagrid-deduplicated-finetuned-with-search-3b"#zephyr-hagrid-rag-agent-3b"#"/lustre/fswork/projects/rech/fiz/udo61qq/zephyr-rag-agent-webgpt" #   "erbacher/zephyr-rag-agent-webgpt"
+TRAINING_CORPUS =  "HAGRID" #WEBGPT
 
 
 def parse(message, begin, end):
@@ -69,9 +69,9 @@ def main():
 
     config = PeftConfig.from_pretrained(RAGAGENT_MODEL_NAME, load_in_8bit=True)
     model = AutoModelForCausalLM.from_pretrained(
-        "HuggingFaceH4/zephyr-7b-beta", device_map="auto"
+        "stabilityai/stablelm-zephyr-3b", device_map="auto" #"HuggingFaceH4/zephyr-7b-beta
     )
-    tokenizer = AutoTokenizer.from_pretrained("HuggingFaceH4/zephyr-7b-beta")
+    tokenizer = AutoTokenizer.from_pretrained(RAGAGENT_MODEL_NAME) #"HuggingFaceH4/zephyr-7b-beta")
     model = PeftModel.from_pretrained(model, RAGAGENT_MODEL_NAME, device_map="auto")
 
     model = model.merge_and_unload()
@@ -92,13 +92,13 @@ def main():
         rounds=4,
         use_tools=True,
         num_docs=3,
-        train_corpus="HAGRID",
+        train_corpus=TRAINING_CORPUS,
     )
 
     kwargs = {"do_sample": True, "top_p": 0.5, "max_new_tokens": 1000}
 
     if dataset_name == "HAGRID":
-        dataset = datasets.load_dataset("miracl/hagrid", split="dev")
+        dataset = datasets.load_from_disk(os.environ["WORK"] + "/hagrid-dev") #load_dataset("miracl/hagrid", split="dev")
         query_column = "query"
     else:
         with open(input_file) as f:
@@ -106,8 +106,8 @@ def main():
         query_column = "question"
 
     results = []
-    for _, row in enumerate(tqdm(dataset)):
-        docs_text, answer = agent.generate(row[query_column], **kwargs)
+    for nb_row, row in enumerate(tqdm(dataset)): 
+        docs_text, scores,answer = agent.generate(row[query_column], **kwargs)
         parsed_answers = parse(answer, "[ANSWER]", "[/ANSWER]")
         if parsed_answers:
             output = " ".join(parsed_answers)
@@ -152,7 +152,7 @@ def main():
     results_df = {"data": results}
     # results_df = pd.DataFrame.from_dict(results)
     # results_df.to_csv(results_file)
-    results_file = "agent_hagrid_3doc_4rounds.json"  # "agent_hagrid_3doc_2rounds.csv"
+    results_file = "all_testHagrid_3b_finetunedSimpleAgenHagrid.json"  # "agent_hagrid_3doc_2rounds.csv"
     with open(results_file, "w") as writer:
         json.dump(results_df, writer)
 
@@ -162,12 +162,12 @@ def main():
 
 def test():
     config = PeftConfig.from_pretrained(RAGAGENT_MODEL_NAME, load_in_8bit=True)
-    model = AutoModelForCausalLM.from_pretrained(
-        "HuggingFaceH4/zephyr-7b-beta", device_map="auto"
-    )
-    tokenizer = AutoTokenizer.from_pretrained("HuggingFaceH4/zephyr-7b-beta")
-    model = PeftModel.from_pretrained(model, RAGAGENT_MODEL_NAME, device_map="auto")
-
+    model = AutoModelForCausalLM.from_pretrained("stabilityai/stablelm-zephyr-3b", device_map="auto")
+    #    "HuggingFaceH4/zephyr-7b-beta", device_map="auto"
+   # )
+    tokenizer = AutoTokenizer.from_pretrained("stabilityai/stablelm-zephyr-3b")#"HuggingFaceH4/zephyr-7b-beta")
+    model = PeftModel.from_pretrained(model,RAGAGENT_MODEL_NAME, device_map="auto")
+    
     model = model.merge_and_unload()
     tools = [
         SearchTool(
@@ -184,11 +184,11 @@ def test():
         rounds=4,
         use_tools=True,
         num_docs=2,
-        train_corpus="WEBGPT",
+        train_corpus=TRAINING_CORPUS,  #"HAGRID",
     )
     kwargs = {"do_sample": True, "top_p": 0.5, "max_new_tokens": 1000}
-    docs, answer = agent.generate("What was the first modern cruise ship?", **kwargs)
-
+    docs,_, answer = agent.generate("What was the first modern cruise ship?", **kwargs)
+    print(answer)
     a = parse(answer, "[ANSWER]", "[/ANSWER]")
     q = parse(answer, "[SEARCH]", "[/SEARCH]")
     # docs = parse(answer, "[DOCS]", "[/DOCS]")
@@ -521,7 +521,7 @@ def test_alce_docs_gtr():
 
 
 if __name__ == "__main__":
-    # main()
+    main()
     # alce_data()
-    # test()
-    test_alce_docs_gtr()
+    #test()
+    #test_alce_docs_gtr()

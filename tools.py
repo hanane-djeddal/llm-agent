@@ -45,7 +45,8 @@ def greedy_decode(model, input_ids, length, attention_mask, return_last_logits=T
 
 class MonoT5:
     def __init__(self, model_path="castorini/monot5-base-msmarco", device=None):
-        self.model = self.get_model(model_path, device=device)
+        self.model = self.get_model("/lustre/fswork/projects/rech/fiz/udo61qq/monot5", device=device)
+        #self.model.save_pretrained("/lustre/fswork/projects/rech/fiz/udo61qq/monot5")
         self.tokenizer = transformers.AutoTokenizer.from_pretrained(
             "t5-base",
         )
