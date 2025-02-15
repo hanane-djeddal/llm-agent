@@ -21,7 +21,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 import datasets
 from transformers import set_seed
 
-RAGAGENT_MODEL_NAME ="/linkhome/rech/geniri01/udo61qq/Code/llm-jz/data/zephyr-hagrid-rag-agent-3b/" #zephyr-hagrid-deduplicated-rag-agent-3b" #zephyr-hagrid-deduplicated-finetuned-with-search-3b"#zephyr-hagrid-rag-agent-3b"#"/lustre/fswork/projects/rech/fiz/udo61qq/zephyr-rag-agent-webgpt" #   "erbacher/zephyr-rag-agent-webgpt"
+RAGAGENT_MODEL_NAME ="/linkhome/rech/geniri01/udo61qq/Code/llm-jz/data/zephyr-hagrid-rag-agent-7b" #zephyr-hagrid-rag-agent-3b/" #zephyr-hagrid-deduplicated-rag-agent-3b" #zephyr-hagrid-deduplicated-finetuned-with-search-3b"#zephyr-hagrid-rag-agent-3b"#"/lustre/fswork/projects/rech/fiz/udo61qq/zephyr-rag-agent-webgpt" #   "erbacher/zephyr-rag-agent-webgpt"
 TRAINING_CORPUS =  "HAGRID" #WEBGPT
 
 
@@ -69,7 +69,7 @@ def main():
 
     config = PeftConfig.from_pretrained(RAGAGENT_MODEL_NAME, load_in_8bit=True)
     model = AutoModelForCausalLM.from_pretrained(
-        "stabilityai/stablelm-zephyr-3b", device_map="auto" #"HuggingFaceH4/zephyr-7b-beta
+        "HuggingFaceH4/zephyr-7b-beta", device_map="auto" #"HuggingFaceH4/zephyr-7b-beta    stabilityai/stablelm-zephyr-3b
     )
     tokenizer = AutoTokenizer.from_pretrained(RAGAGENT_MODEL_NAME) #"HuggingFaceH4/zephyr-7b-beta")
     model = PeftModel.from_pretrained(model, RAGAGENT_MODEL_NAME, device_map="auto")
@@ -106,7 +106,9 @@ def main():
         query_column = "question"
 
     results = []
-    for nb_row, row in enumerate(tqdm(dataset)): 
+    for nb_row, row in enumerate(tqdm(dataset)):
+        #if nb_row == 500:
+        #    break 
         docs_text, scores,answer = agent.generate(row[query_column], **kwargs)
         parsed_answers = parse(answer, "[ANSWER]", "[/ANSWER]")
         if parsed_answers:
@@ -152,7 +154,7 @@ def main():
     results_df = {"data": results}
     # results_df = pd.DataFrame.from_dict(results)
     # results_df.to_csv(results_file)
-    results_file = "all_testHagrid_3b_finetunedSimpleAgenHagrid.json"  # "agent_hagrid_3doc_2rounds.csv"
+    results_file = "all_testHagrid_7b_finetunedSimpleAgenHagrid.json"  # "agent_hagrid_3doc_2rounds.csv"
     with open(results_file, "w") as writer:
         json.dump(results_df, writer)
 
