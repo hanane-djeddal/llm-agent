@@ -192,6 +192,9 @@ def main():
             if position != -1:
                 start = position + len("[ANSWER]")
                 output = answer[start:]
+
+        if output is None:
+            output = ""
         if TRAINING_CORPUS == "HAGRID":
              docs = []
              docids = []
@@ -202,7 +205,7 @@ def main():
                             docs.append(doc)
                             docids.append(docid)
                   for i in range(len(docs)):
-                       if docs[i] and docs[i]["docid"] in output:
+                       if docs and docs[i]["docid"] in output:
                             output = output.replace(docs[i]["docid"],str(i+1))
         if dataset_name == "HAGRID":
             annotations = []
