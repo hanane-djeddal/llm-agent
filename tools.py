@@ -4,7 +4,38 @@ import torch
 import transformers
 import numpy as np
 import copy
+from sentence_transformers import SentenceTransformer
 
+class GTR:
+    def __init__(self, model_path="sentence-transformers/gtr-t5-xxl", device=None):
+        self.encoder = SentenceTransformer(model_path, device=device)
+        self.device = device
+
+    def rerank(self, query, docs):
+        """Encodes query and reranks retrieved documents using GTR embeddings."""
+        # Encode the query
+        query_emb = self.encoder.encode(query, batch_size=1, normalize_embeddings=True)
+
+        # Extract and encode document texts
+        docs_text = [doc["text"] for doc in docs]  # Extract text from docs
+        doc_embs = self.encoder.encode(docs_text, batch_size=4, normalize_embeddings=True)
+
+        # Compute cosine similarity between query and documents
+        scores = np.dot(doc_embs, query_emb)  # (num_docs,)
+
+        # Rank documents based on similarity scores
+        ranked_indices = np.argsort(scores)[::-1]  # Sort in descending order
+
+        # Reorder documents with scores
+        ranked_docs = []
+        for idx in ranked_indices:
+            doc_to_save = docs[idx]  # Retrieve the original doc (with docid, title, text)
+            doc_to_save["score"] = float(scores[idx])  # Add the score
+            ranked_docs.append(doc_to_save)
+
+        return ranked_docs  # Return reranked documents
+
+    
 
 def batch(docs: list, nb: int = 10):
     batches = []
@@ -158,12 +189,15 @@ class Tool:
 
 class SearchTool(Tool):
     def __init__(
-        self, name="search", index="robust04", start_token="[boq]", end_token="[eoq]"
+        self, name="search", index="robust04", start_token="[boq]", end_token="[eoq]", reranker=None
     ):
         super().__init__(name=name, start_token=start_token, end_token=end_token)
         self.docs_ids = []
         self.searcher = LuceneSearcher.from_prebuilt_index(index)
-        self.ranker = MonoT5(device="cuda")
+        if reranker == "GTR":
+            self.ranker = GTR(device="cuda")
+        else:
+            self.ranker = MonoT5(device="cuda")
 
     def search(self, query, k=3):
         docs = self.searcher.search(query, k=100)
@@ -187,10 +221,13 @@ class SearchTool(Tool):
 
 
 class SearchToolWithinDocs(Tool):
-    def __init__(self, name="search", start_token="[boq]", end_token="[eoq]"):
+    def __init__(self, name="search", start_token="[boq]", end_token="[eoq]",reranker=None):
         super().__init__(name=name, start_token=start_token, end_token=end_token)
         self.docs_ids = []
-        self.ranker = MonoT5(device="cuda")
+        if reranker == "GTR":
+            self.ranker = GTR(device="cuda")
+        else:
+            self.ranker = MonoT5(device="cuda")
 
     def search(self, query, k=3, initial_docs=[]):
         ranked_doc = self.ranker.rerank(query, initial_docs)[:k]
