@@ -112,24 +112,26 @@ class Agent:
         query_pattern = r'\[SEARCH\].*?\[/SEARCH\]'
         message = [{"role": "user", "content": question}]
         if self.without_query_gen:
-            docs:
-                docs_text, scores, inputs = self.tools[tool_id](
-                    "[ANSWER]"+question+"[/ANSWER]", k=self.num_docs, initial_docs=docs
-                 )
-                else:
-                    docs_text, scores, inputs = self.tools[tool_id](
-                        "[ANSWER]"+question+"[/ANSWER]", k=self.num_docs
-                    )
-                    message = [{"role": "assistant", "content": docs_text}]
+            for_ret = self.tool.start_token+question+self.tool.end_token
+            logger.info(f"First Retrieving docs using user query {for_ret}")
+            if docs:
+                docs_text, scores, inputs = self.tools[tool_id](for_ret, k=self.num_docs, initial_docs=docs)
+            else:
+                docs_text, scores, inputs = self.tools[tool_id](for_ret, k=self.num_docs )
+            all_scores.append(scores)
+            all_docs.append(docs_text)
+            first_input = inputs.replace(for_ret,'')
+            logger.info(f"First assitant input  {first_input}")
+
+            
+            message = [{"role": "assistant", "content": first_input}]
         inputs = self.tokenizer.apply_chat_template(
             message, tokenize=True, add_generation_prompt=True, return_tensors="pt", truncation=True
         )
         max_length = self.tokenizer.model_max_length
-        #print("max length:", self.tokenizer.model_max_length)
         last_gen = 0
         generated_tool = False
         for i in range(self.rounds):
-            #print("round:",i)
             output = self.model.generate(
                 inputs.to(self.model.device),
                 stopping_criteria=self.stopping_criteria,
@@ -150,12 +152,6 @@ class Agent:
                 output  =  re.sub(pattern, '', output)
                 #print("output for round ",i, ":", output)
             cuurent_output = output[last_gen:]
-            #hallucinated_docs = cuurent_output.find("[DOCS]")
-            #if generated_tool == False and hallucinated_docs != -1:
-                #cuurent_output = cuurent_output[:hallucinated_docs]
-                #print("output for round ",i, ":", output)
-                #output = output[last_gen:] + cuurent_output
-                #print("current output for round ",i, ":", cuurent_output)
             if self.adjusted:
                 patternA = r'\[ANSWER\](.*?)\[/ANSWER\]'
                 matches = re.findall(patternA, cuurent_output, re.DOTALL)

@@ -167,7 +167,7 @@ def main():
         adjusted= False, #True,
         model_params = "7B",
         manual_stop_words= False,
-        without_query_gen = args.inference_variant == "without_query"
+        without_query_gen = (args.inference_variant == "without_query")
     )
     print("Adjusted", False)
     kwargs = {"do_sample": True, "top_p": 0.5, "max_new_tokens": 2000}
