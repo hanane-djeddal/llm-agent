@@ -100,6 +100,8 @@ class Agent:
         list_end_gen = []
         for tool in self.tools:
             list_end_gen.append(tool.end_token)
+        if self.without_query_gen:
+            list_end_gen.append("[/SEARCH]")
         return list_end_gen
 
     def generate(self, question, docs=None, **kwargs):
@@ -109,6 +111,16 @@ class Agent:
         pattern = r'\[DOCS\].*?\[/DOCS\]'
         query_pattern = r'\[SEARCH\].*?\[/SEARCH\]'
         message = [{"role": "user", "content": question}]
+        if self.without_query_gen:
+            docs:
+                docs_text, scores, inputs = self.tools[tool_id](
+                    "[ANSWER]"+question+"[/ANSWER]", k=self.num_docs, initial_docs=docs
+                 )
+                else:
+                    docs_text, scores, inputs = self.tools[tool_id](
+                        "[ANSWER]"+question+"[/ANSWER]", k=self.num_docs
+                    )
+                    message = [{"role": "assistant", "content": docs_text}]
         inputs = self.tokenizer.apply_chat_template(
             message, tokenize=True, add_generation_prompt=True, return_tensors="pt", truncation=True
         )
@@ -127,11 +139,8 @@ class Agent:
             if output[-1] == "[":
                 output= output[:-1]
             print("unmodified output for round ",i, ":", output)
-            if self.without_query_gen:
-                output = re.sub(query_pattern, '', output) 
-                if i == 0:
-                    output = "[ANSWER]"+question+"[/ANSWER]"
-                
+            if self.without_query_gen:                 
+                output = re.sub(query_pattern, '', output)
                 print("Removing search tokens ",i, ":", output)
             if self.adjusted:
                 #print("unmodified output for round ",i, ":", output)
@@ -195,11 +204,6 @@ class Agent:
                     inputs = output
                     generated_tool = False
                 else:
-                    #inputs = output
-                    #generated_tool = False
-                    #inputs = inputs.replace("<|endoftext|>","")
-                    #inputs = inputs.replace("</s>","")
-                    #inputs = inputs +"[SEARCH]"
                     break
             inputs = inputs.replace("<|endoftext|>","")
             inputs = inputs.replace("</s>","")

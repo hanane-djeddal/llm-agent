@@ -21,7 +21,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 import datasets
 from transformers import set_seed
 
-RAGAGENT_MODEL_NAME = "/lustre/fswork/projects/rech/fiz/udo61qq/llm-jz/llama/llama-2-chat-hagrid-att-rag-agent-13b" #llama-2-chat-hagrid-rag-agent-7b/" #zephyr-webgpt-deduplicated-rag-agent-7b/" #"/lustre/fswork/projects/rech/fiz/udo61qq/llm-jz/data/zephyr-hagrid-rag-agent-7b/"  #zephyr-webgpt-rag-agent-3b-v2/"  #zephyr-webgpt-deduplicated-rag-agent-3b-v2/checkpoint-10500/" #zephyr-webgpt-rag-agent-3b/" #/linkhome/rech/geniri01/udo61qq/Code/llm-jz/data/zephyr-hagrid-deduplicated-rag-agent-7b" #zephyr-hagrid-deduplicated-rag-agent-3b" #zephyr-hagrid-deduplicated-rag-agent-7b" #zephyr-hagrid-rag-agent-7b/" #zephyr-hagrid-rag-agent-7b/" #zephyr-hagrid-deduplicated-rag-agent-3b" #zephyr-hagrid-deduplicated-finetuned-with-search-3b"#zephyr-hagrid-rag-agent-3b"#"/lustre/fswork/projects/rech/fiz/udo61qq/zephyr-rag-agent-webgpt" #   "erbacher/zephyr-rag-agent-webgpt"
+RAGAGENT_MODEL_NAME = "/lustre/fswork/projects/rech/fiz/udo61qq/llm-jz/llama/llama-2-chat-hagrid-att-seg-proba-rag-agent-13b" #"/lustre/fswork/projects/rech/fiz/udo61qq/llm-jz/llama/llama-2-chat-hagrid-att-seg-proba-rag-agent-13b/"  #llama-2-chat-hagrid-rag-agent-7b/" #zephyr-webgpt-deduplicated-rag-agent-7b/" #"/lustre/fswork/projects/rech/fiz/udo61qq/llm-jz/data/zephyr-hagrid-rag-agent-7b/"  #zephyr-webgpt-rag-agent-3b-v2/"  #zephyr-webgpt-deduplicated-rag-agent-3b-v2/checkpoint-10500/" #zephyr-webgpt-rag-agent-3b/" #/linkhome/rech/geniri01/udo61qq/Code/llm-jz/data/zephyr-hagrid-deduplicated-rag-agent-7b" #zephyr-hagrid-deduplicated-rag-agent-3b" #zephyr-hagrid-deduplicated-rag-agent-7b" #zephyr-hagrid-rag-agent-7b/" #zephyr-hagrid-rag-agent-7b/" #zephyr-hagrid-deduplicated-rag-agent-3b" #zephyr-hagrid-deduplicated-finetuned-with-search-3b"#zephyr-hagrid-rag-agent-3b"#"/lustre/fswork/projects/rech/fiz/udo61qq/zephyr-rag-agent-webgpt" #   "erbacher/zephyr-rag-agent-webgpt"
 TRAINING_CORPUS =  "HAGRID" #WEBGPT HAGRID
 
 
@@ -73,7 +73,7 @@ def test():
     tools = [
         SearchTool(
             name="search",
-            index="wikipedia-dpr", #"miracl-v1.0-en",
+            index="miracl-v1.0-en", #"wikipedia-dpr
             start_token="[SEARCH]",
             end_token="[/SEARCH]",
             reranker= "GTR"
@@ -92,7 +92,7 @@ def test():
         manual_stop_words= False,
     )
     kwargs = {"do_sample": True, "top_p": 0.5, "max_new_tokens": 1000}
-    docs,_, answer = agent.generate("Who has the highest goals in men's world international football?", **kwargs) #What was the first modern cruise ship? Where did Jehovah's Witnesses originate?
+    docs,_, answer = agent.generate("What was the first modern cruise ship?", **kwargs) # Who has the highest goals in men's world international football? What was the first modern cruise ship? Where did Jehovah's Witnesses originate?
     print(answer)
     a = parse(answer, "[ANSWER]", "[/ANSWER]")
     q = parse(answer, "[SEARCH]", "[/SEARCH]")

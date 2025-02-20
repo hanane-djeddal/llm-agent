@@ -210,7 +210,7 @@ def test_alce_docs_gtr():
         #    docids_per_sub_query.append(docids)
         #else:
         docs = docs_text
-
+        output = ""
         parsed_answers = parse(answer, "[ANSWER]", "[/ANSWER]")
         if parsed_answers:
             output = " ".join(parsed_answers)
@@ -221,9 +221,6 @@ def test_alce_docs_gtr():
                 start = position + len("[ANSWER]")
                 output = answer[start:]
         ### replace docids in answer by indices
-        if output is None:
-            output = ""
-
         if TRAINING_CORPUS == "HAGRID":
             docs = []
             docids = []

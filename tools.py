@@ -30,6 +30,7 @@ class GTR:
         if len(docs) and 'contents' in docs[0].keys():
             test_field= "contents"
         # Extract and encode document texts
+        #print(docs)
         docs_text = [doc[text_field] for doc in docs]  # Extract text from docs
         doc_embs = self.encoder.encode(docs_text, batch_size=4, normalize_embeddings=True)
 
@@ -230,17 +231,20 @@ class SearchTool(Tool):
         docids = [i["docid"] for i in ranked_doc]
         scores = [i["score"] for i in ranked_doc]
         if self.ranker_type == "GTR":
-            docs_text = ranked_doc
+            docs_text = [{k: v for k, v in d.items() if k not in ['score','title']} for d in ranked_doc]
+            logger.info(f"Removing title...")
         else:
             docs_text = [
                 self.searcher.doc(docid).raw() for j, docid in enumerate(docids)
             ]
 
+            docs_text = [{k: v for k, v in d.items() if k not in ['score','title']} for d in docs_text]
+
         return docs_text, scores
 
     def process(self, query, **kwargs):
         docs_text, scores = self.search(query, **kwargs)
-        return docs_text, scores, f"[DOCS]{docs_text}[/DOCS]\n"
+        return docs_text, scores, f"\n[DOCS] {docs_text} [/DOCS]\n"
 
 
 class SearchToolWithinDocs(Tool):
@@ -260,19 +264,21 @@ class SearchToolWithinDocs(Tool):
             if "id" in doc.keys():
                 added_docid = {"docid": doc["id"]}
                 doc = {**added_docid, **doc}
-                del doc["id"]
-                if "summary" in doc.keys():
-                    del doc["summary"]
-                if "extraction" in doc.keys():
-                    del doc["extraction"]
-                if "score" in doc.keys():
-                    del doc["score"]
+                del doc["id"]            
             else:
                 print("keys", doc.keys())
+            if "summary" in doc.keys():
+                del doc["summary"]
+            if "extraction" in doc.keys():
+                del doc["extraction"]
+            if "score" in doc.keys():
+                del doc["score"]
+            if "title" in doc.keys():
+                del doc["title"]
             docs.append(doc)
 
         return docs, scores
 
     def process(self, query, **kwargs):
         docs_text, scores = self.search(query, **kwargs)
-        return docs_text, scores, f"[DOCS] {docs_text} [/DOCS]\n"
+        return docs_text, scores, f"\n[DOCS] {docs_text} [/DOCS]\n"
