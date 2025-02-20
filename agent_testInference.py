@@ -42,7 +42,7 @@ class Agent:
         adjusted=False,
         model_params = "7B",
         manual_stop_words= False,
-        without_query_gen = False,
+        without_query_gen = None,
     ):
 
         self.model = model
@@ -54,6 +54,7 @@ class Agent:
         self.num_docs = num_docs
         self.use_tools = use_tools
         self.train_corpus = train_corpus
+        self.without_query_gen = without_query_gen
         stop_words = self.get_stop_token()
         stop_words_ids = [
             self.tokenizer(stop_word, return_tensors="pt", add_special_tokens=False)[
@@ -99,6 +100,8 @@ class Agent:
         list_end_gen = []
         for tool in self.tools:
             list_end_gen.append(tool.end_token)
+        if self.without_query_gen:
+            list_end_gen.append("[/SEARCH]")
         return list_end_gen
 
     def generate(self, question, docs=None, **kwargs):
@@ -106,7 +109,18 @@ class Agent:
         all_scores = []
         used_docids = {}
         pattern = r'\[DOCS\].*?\[/DOCS\]'
+        query_pattern = r'\[SEARCH\].*?\[/SEARCH\]'
         message = [{"role": "user", "content": question}]
+        if self.without_query_gen:
+            docs:
+                docs_text, scores, inputs = self.tools[tool_id](
+                    "[ANSWER]"+question+"[/ANSWER]", k=self.num_docs, initial_docs=docs
+                 )
+                else:
+                    docs_text, scores, inputs = self.tools[tool_id](
+                        "[ANSWER]"+question+"[/ANSWER]", k=self.num_docs
+                    )
+                    message = [{"role": "assistant", "content": docs_text}]
         inputs = self.tokenizer.apply_chat_template(
             message, tokenize=True, add_generation_prompt=True, return_tensors="pt", truncation=True
         )
@@ -124,7 +138,10 @@ class Agent:
             output = self.tokenizer.batch_decode(output)[0]
             if output[-1] == "[":
                 output= output[:-1]
-            #print("unmodified output for round ",i, ":", output)
+            print("unmodified output for round ",i, ":", output)
+            if self.without_query_gen:                 
+                output = re.sub(query_pattern, '', output)
+                print("Removing search tokens ",i, ":", output)
             if self.adjusted:
                 #print("unmodified output for round ",i, ":", output)
                 hallucinated_docs = output.find("[DOCS]")
@@ -187,11 +204,6 @@ class Agent:
                     inputs = output
                     generated_tool = False
                 else:
-                    #inputs = output
-                    #generated_tool = False
-                    #inputs = inputs.replace("<|endoftext|>","")
-                    #inputs = inputs.replace("</s>","")
-                    #inputs = inputs +"[SEARCH]"
                     break
             inputs = inputs.replace("<|endoftext|>","")
             inputs = inputs.replace("</s>","")
