@@ -4,20 +4,33 @@ import torch
 import transformers
 import numpy as np
 import copy
+import os
 from sentence_transformers import SentenceTransformer
+os.environ['HF_HOME'] = os.environ['WORK'] + '/.cache/huggingface'
+import logging
+logging.basicConfig(
+    format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+    datefmt="%m/%d/%Y %H:%M:%S",
+)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 class GTR:
     def __init__(self, model_path="sentence-transformers/gtr-t5-xxl", device=None):
-        self.encoder = SentenceTransformer(model_path, device=device)
+        #self.encoder = SentenceTransformer(model_path, device=device)
+        device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+        device = torch.device(device)        
         self.device = device
-
+        self.encoder = SentenceTransformer(model_path, device=device)
     def rerank(self, query, docs):
         """Encodes query and reranks retrieved documents using GTR embeddings."""
         # Encode the query
         query_emb = self.encoder.encode(query, batch_size=1, normalize_embeddings=True)
-
+        text_field='text'
+        if len(docs) and 'contents' in docs[0].keys():
+            test_field= "contents"
         # Extract and encode document texts
-        docs_text = [doc["text"] for doc in docs]  # Extract text from docs
+        docs_text = [doc[text_field] for doc in docs]  # Extract text from docs
         doc_embs = self.encoder.encode(docs_text, batch_size=4, normalize_embeddings=True)
 
         # Compute cosine similarity between query and documents
@@ -30,12 +43,15 @@ class GTR:
         ranked_docs = []
         for idx in ranked_indices:
             doc_to_save = docs[idx]  # Retrieve the original doc (with docid, title, text)
+            if text_field != "text":
+                doc_to_save["text"] = doc_to_save.pop(text_field)
+            if "docid" not in doc_to_save.keys():
+                doc_to_save["docid"] = doc_to_save.pop("id")
             doc_to_save["score"] = float(scores[idx])  # Add the score
             ranked_docs.append(doc_to_save)
 
         return ranked_docs  # Return reranked documents
 
-    
 
 def batch(docs: list, nb: int = 10):
     batches = []
@@ -79,7 +95,7 @@ class MonoT5:
         self.model = self.get_model("/lustre/fswork/projects/rech/fiz/udo61qq/monot5", device=device)
         #self.model.save_pretrained("/lustre/fswork/projects/rech/fiz/udo61qq/monot5")
         self.tokenizer = transformers.AutoTokenizer.from_pretrained(
-            "t5-base",
+            "t5-base", cache_dir=os.environ['WORK'] + '/.cache/huggingface/hub'
         )
         self.token_false_id = self.tokenizer.get_vocab()["▁false"]
         self.token_true_id = self.tokenizer.get_vocab()["▁true"]
@@ -194,10 +210,14 @@ class SearchTool(Tool):
         super().__init__(name=name, start_token=start_token, end_token=end_token)
         self.docs_ids = []
         self.searcher = LuceneSearcher.from_prebuilt_index(index)
+        self.ranker_type =  reranker
         if reranker == "GTR":
             self.ranker = GTR(device="cuda")
         else:
             self.ranker = MonoT5(device="cuda")
+        logger.info(f"Setting Retriever: corpus...{index}")
+        logger.info(f"Setting Retriever: bm25 + Reranker...{reranker}")
+        #self.ranker = MonoT5(device="cuda")
 
     def search(self, query, k=3):
         docs = self.searcher.search(query, k=100)
@@ -209,15 +229,18 @@ class SearchTool(Tool):
         ranked_doc = self.ranker.rerank(query, docs_text)[:k]
         docids = [i["docid"] for i in ranked_doc]
         scores = [i["score"] for i in ranked_doc]
-        docs_text = [
-            eval(self.searcher.doc(docid).raw()) for j, docid in enumerate(docids)
-        ]
+        if self.ranker_type == "GTR":
+            docs_text = ranked_doc
+        else:
+            docs_text = [
+                self.searcher.doc(docid).raw() for j, docid in enumerate(docids)
+            ]
 
         return docs_text, scores
 
     def process(self, query, **kwargs):
         docs_text, scores = self.search(query, **kwargs)
-        return docs_text, scores, f"\n[DOCS] {docs_text} [/DOCS]\n"
+        return docs_text, scores, f"[DOCS]{docs_text}[/DOCS]\n"
 
 
 class SearchToolWithinDocs(Tool):
@@ -252,4 +275,4 @@ class SearchToolWithinDocs(Tool):
 
     def process(self, query, **kwargs):
         docs_text, scores = self.search(query, **kwargs)
-        return docs_text, scores, f"\n[DOCS] {docs_text} [/DOCS]\n"
+        return docs_text, scores, f"[DOCS] {docs_text} [/DOCS]\n"
