@@ -148,7 +148,7 @@ def main():
         retireval_start_token ="[ANSWER]"
         retireval_end_token = "[/ANSWER]"
     else:
-        retireval_start_token = "[SEARCH]"
+        retireval_start_token = "[ANSWER]"
         retireval_end_token = "[/SEARCH]"
     tools = [
         SearchTool(
