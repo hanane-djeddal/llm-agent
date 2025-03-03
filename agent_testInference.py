@@ -1,6 +1,14 @@
 from transformers import StoppingCriteriaList, StoppingCriteria, StoppingCriteriaList
 import torch
 import re
+import logging
+
+logging.basicConfig(
+    format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+    datefmt="%m/%d/%Y %H:%M:%S",
+)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 class StoppingCriteriaSub(StoppingCriteria):
 
@@ -43,6 +51,7 @@ class Agent:
         model_params = "7B",
         manual_stop_words= False,
         without_query_gen = None,
+        one_round= None,
     ):
 
         self.model = model
@@ -55,6 +64,7 @@ class Agent:
         self.use_tools = use_tools
         self.train_corpus = train_corpus
         self.without_query_gen = without_query_gen
+        self.one_round =one_round
         stop_words = self.get_stop_token()
         stop_words_ids = [
             self.tokenizer(stop_word, return_tensors="pt", add_special_tokens=False)[
@@ -112,7 +122,7 @@ class Agent:
         query_pattern = r'\[SEARCH\].*?\[/SEARCH\]'
         message = [{"role": "user", "content": question}]
         if self.without_query_gen:
-            for_ret = self.tool.start_token+question+self.tool.end_token
+            for_ret = self.tools[0].start_token+question+self.self.tools[0].end_token
             logger.info(f"First Retrieving docs using user query {for_ret}")
             if docs:
                 docs_text, scores, inputs = self.tools[tool_id](for_ret, k=self.num_docs, initial_docs=docs)
@@ -129,6 +139,14 @@ class Agent:
             message, tokenize=True, add_generation_prompt=True, return_tensors="pt", truncation=True
         )
         max_length = self.tokenizer.model_max_length
+        if self.one_round: 
+            output = self.model.generate(
+                inputs.to(self.model.device),
+                stopping_criteria=self.stopping_criteria,
+                **kwargs,
+            )
+            output = self.tokenizer.batch_decode(output)[0]
+            return all_docs, all_scores, output
         last_gen = 0
         generated_tool = False
         for i in range(self.rounds):

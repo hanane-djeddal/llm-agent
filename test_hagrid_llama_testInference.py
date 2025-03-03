@@ -79,7 +79,7 @@ def main():
     parser.add_argument("--resume_from_file", type=str, default=None)
     parser.add_argument("--ranker", type=str, default="GTR", choices=["GTR","MonoT5"])
     parser.add_argument("--retrieval", action="store_true")
-    parser.add_argument("--inference_variant", type=str, default=None, choices=["normal", "without_query"])
+    parser.add_argument("--inference_variant", type=str, default=None, choices=["sft","agent", "without_query"])
     parser.add_argument(
         "--validating_code",
         action="store_true",
@@ -167,7 +167,8 @@ def main():
         adjusted= False, #True,
         model_params = "7B",
         manual_stop_words= False,
-        without_query_gen = (args.inference_variant == "without_query")
+        without_query_gen = (args.inference_variant == "without_query"),
+        one_round= (args.inference_variant == "sft")
     )
     print("Adjusted", False)
     kwargs = {"do_sample": True, "top_p": 0.5, "max_new_tokens": 2000}
