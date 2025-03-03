@@ -9,6 +9,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+import logging
+
+logging.basicConfig(
+    format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+    datefmt="%m/%d/%Y %H:%M:%S",
+)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 class StoppingCriteriaSub(StoppingCriteria):
 
@@ -51,8 +59,8 @@ class Agent:
         model_params = "7B",
         manual_stop_words= False,
         without_query_gen = None,
-        one_round= None,
-    ):
+        one_round= None,    
+):
 
         self.model = model
         self.tokenizer = tokenizer
@@ -64,7 +72,7 @@ class Agent:
         self.use_tools = use_tools
         self.train_corpus = train_corpus
         self.without_query_gen = without_query_gen
-        self.one_round =one_round
+        self.one_round = one_round
         stop_words = self.get_stop_token()
         stop_words_ids = [
             self.tokenizer(stop_word, return_tensors="pt", add_special_tokens=False)[
@@ -121,17 +129,20 @@ class Agent:
         pattern = r'\[DOCS\].*?\[/DOCS\]'
         query_pattern = r'\[SEARCH\].*?\[/SEARCH\]'
         message = [{"role": "user", "content": question}]
-        if self.without_query_gen:
-            for_ret = self.tools[0].start_token+question+self.self.tools[0].end_token
-            logger.info(f"First Retrieving docs using user query {for_ret}")
+        if self.without_query_gen or self.one_round:
+            for_ret = self.tools[0].start_token+question+self.tools[0].end_token
+            logger.info(f"First Retrieving docs using user query")
             if docs:
-                docs_text, scores, inputs = self.tools[tool_id](for_ret, k=self.num_docs, initial_docs=docs)
+                docs_text, scores, inputs = self.tools[0](for_ret, k=self.num_docs, initial_docs=docs)
             else:
-                docs_text, scores, inputs = self.tools[tool_id](for_ret, k=self.num_docs )
+                docs_text, scores, inputs = self.tools[0](for_ret, k=self.num_docs )
             all_scores.append(scores)
             all_docs.append(docs_text)
             first_input = inputs.replace(for_ret,'')
-            logger.info(f"First assitant input  {first_input}")
+            first_input = first_input.replace("</s>",'')
+            first_input = first_input.replace("\n",'')
+            first_input = first_input + self.tools[0].start_token
+            #logger.info(f"First assitant input  {first_input}")
 
             
             message = [{"role": "assistant", "content": first_input}]
@@ -147,21 +158,27 @@ class Agent:
             )
             output = self.tokenizer.batch_decode(output)[0]
             return all_docs, all_scores, output
+        
         last_gen = 0
         generated_tool = False
         for i in range(self.rounds):
+            #print("unmodified output for round ",i, ":", input)
             output = self.model.generate(
                 inputs.to(self.model.device),
                 stopping_criteria=self.stopping_criteria,
                 **kwargs,
             )
             output = self.tokenizer.batch_decode(output)[0]
+            if i==0 and  self.without_query_gen:
+                special_token = "<|assistant|>"
+                parts = output.rsplit(special_token, 1)
+                output = "".join(parts) 
             if output[-1] == "[":
                 output= output[:-1]
-            print("unmodified output for round ",i, ":", output)
-            if self.without_query_gen:                 
-                output = re.sub(query_pattern, '', output)
-                print("Removing search tokens ",i, ":", output)
+            #print("unmodified output for round ",i, ":", output)
+            #if self.without_query_gen:                 
+                #output = re.sub(query_pattern, '', output)
+                #print("Removing search tokens ",i, ":", output)
             if self.adjusted:
                 #print("unmodified output for round ",i, ":", output)
                 hallucinated_docs = output.find("[DOCS]")

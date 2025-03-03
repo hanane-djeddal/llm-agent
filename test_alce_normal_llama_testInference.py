@@ -10,7 +10,7 @@ import src.slurm
 import src.data
 from src.evaluation import calculate_matches
 import src.normalize_text
-import re
+
 import os
 
 #os.environ["HTTP_PROXY"] = "http://hacienda:3128"
@@ -65,14 +65,15 @@ def parse(message, begin, end):
     return substrings
 
 
-from agent import Agent
+from agent_testInference  import Agent
 from tools import SearchTool, SearchToolWithinDocs
 from tools_alce import SearchToolALCE
+
+import re
 
 def reposition_period_after_citation(text):
     result = re.sub(r'\.\s*((\[[^\]]+\])+)(?!\S)', r' \1.', text)
     return result
-
 
 def test_alce_docs_gtr():
     print(os.environ.get('HF_HOME'))
@@ -120,6 +121,7 @@ def test_alce_docs_gtr():
     parser.add_argument("--nb_rounds", type=int, default=4)
     parser.add_argument("--nb_docs", type=int, default=3)
     parser.add_argument("--resume_from_file", type=str, default=None)
+    parser.add_argument("--inference_variant", type=str, default=None, choices=["sft","agent", "without_query"])
     args = parser.parse_args()
     src.slurm.init_distributed_mode(args)
 
@@ -132,12 +134,22 @@ def test_alce_docs_gtr():
     logger.info(f"Retrieval : GTR top 100 reranked")
     tag = args.tag if args.tag else  args.ragnroll_model_name.split('/')[-1]
     logger.info(f"Used Tag {tag}")
+    logger.info(f"Inference without query : {args.inference_variant}")
     if args.validating_code:
         logger.info(f"Only running two iterations to test")
         tag = tag + "code_validation" 
+
+    if args.inference_variant in ["sft", "without_query"]:
+        retireval_start_token ="[ANSWER]"
+        retireval_end_token = "[/ANSWER]"
+    else:
+        retireval_start_token = "[SEARCH]"
+        retireval_end_token = "[/SEARCH]"
+    variant_tag = args.inference_variant if args.inference_variant else ''
+
     tools = [
         SearchToolWithinDocs(
-            name="search", start_token="[ANSWER]", end_token="[/SEARCH]"
+            name="search", start_token=retireval_start_token, end_token=retireval_end_token
         )
     ]
     config = PeftConfig.from_pretrained(
@@ -164,6 +176,8 @@ def test_alce_docs_gtr():
         adjusted= False,
         model_params = "7B",
         manual_stop_words= False,
+        without_query_gen = (args.inference_variant == "without_query"),
+        one_round= (args.inference_variant == "sft"),
     )
 
     kwargs = {"do_sample": True, "top_p": 0.5, "max_new_tokens": 1000}
@@ -191,7 +205,7 @@ def test_alce_docs_gtr():
         if itera < start_idx:
             continue
         if args.validating_code:
-            if itera == 2:
+            if itera ==2:
                 break
         docs_text, scores, answer = agent.generate(
             row[query_column], docs=row["docs"], **kwargs
@@ -222,6 +236,9 @@ def test_alce_docs_gtr():
             if position != -1:
                 start = position + len("[ANSWER]")
                 output = answer[start:]
+            elif args.inference_variant =="sft":
+                output = answer.split('<|assistant|>')[-1]
+                output = output.replace("[/ANSWER]","")
         ### replace docids in answer by indices
         if TRAINING_CORPUS == "HAGRID":
             docs = []
@@ -262,7 +279,7 @@ def test_alce_docs_gtr():
             results.append(row)
         if (itera+1) % 150 == 0:
             results_df = {"data": results}
-            results_file = results_dir+"intr_testasqa_"+tag+"_"+str(args.nb_rounds)+"rounds_"+str(args.nb_docs)+"docs.json"  # "agent_hagrid_3doc_2rounds.csv"
+            results_file = results_dir+"intr_testasqa_"+tag+"_"+str(args.nb_rounds)+"rounds_"+str(args.nb_docs)+"docs"+variant_tag+".json"  # "agent_hagrid_3doc_2rounds.csv"
             with open(results_file, "w") as writer:
                 json.dump(results_df, writer)
     end = time.time()
@@ -272,7 +289,7 @@ def test_alce_docs_gtr():
     # results_df = pd.DataFrame.from_dict(results)
     # results_df.to_csv(results_file)
 
-    results_file = results_dir+"all_testasqa_"+tag+"_"+str(args.nb_rounds)+"rounds_"+str(args.nb_docs)+"docs.json" 
+    results_file = results_dir+"all_testasqa_"+tag+"_"+str(args.nb_rounds)+"rounds_"+str(args.nb_docs)+"docs"+variant_tag+".json" 
     with open(results_file, "w") as writer:
         json.dump(results_df, writer)
 

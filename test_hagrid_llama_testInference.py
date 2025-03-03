@@ -69,7 +69,11 @@ def parse(message, begin, end):
 from agent_testInference  import Agent
 from tools import SearchTool, SearchToolWithinDocs
 from tools_alce import SearchToolALCE
+import re
 
+def reposition_period_after_citation(text):
+    result = re.sub(r'\.\s*((\[[^\]]+\])+)(?!\S)', r' \1.', text)
+    return result
 
 def main():
     global RAGAGENT_MODEL_NAME,  TRAINING_CORPUS, model_result_file
@@ -79,7 +83,7 @@ def main():
     parser.add_argument("--resume_from_file", type=str, default=None)
     parser.add_argument("--ranker", type=str, default="GTR", choices=["GTR","MonoT5"])
     parser.add_argument("--retrieval", action="store_true")
-    parser.add_argument("--inference_variant", type=str, default=None, choices=["sft","agent", "without_query"])
+    parser.add_argument("--inference_variant", type=str, default=None, choices=["sft","normal", "without_query"])
     parser.add_argument(
         "--validating_code",
         action="store_true",
@@ -140,7 +144,7 @@ def main():
     model = model.merge_and_unload()
 
     start = time.time()
-    if args.inference_variant == "without_query":
+    if args.inference_variant in ["sft", "without_query"]:
         retireval_start_token ="[ANSWER]"
         retireval_end_token = "[/ANSWER]"
     else:
@@ -168,7 +172,7 @@ def main():
         model_params = "7B",
         manual_stop_words= False,
         without_query_gen = (args.inference_variant == "without_query"),
-        one_round= (args.inference_variant == "sft")
+        one_round= (args.inference_variant == "sft"),
     )
     print("Adjusted", False)
     kwargs = {"do_sample": True, "top_p": 0.5, "max_new_tokens": 2000}
@@ -207,6 +211,9 @@ def main():
             if position != -1:
                 start = position + len("[ANSWER]")
                 output = answer[start:]
+            elif args.inference_variant =="sft":
+                output = answer.split('<|assistant|>')[-1]
+                output = output.replace("[/ANSWER]","")
 
         if output is None:
             output = ""
@@ -222,6 +229,7 @@ def main():
                   for i in range(len(docs)):
                        if docs and docs[i]["docid"] in output:
                             output = output.replace(docs[i]["docid"],str(i+1))
+        output = reposition_period_after_citation(output)
         if dataset_name == "HAGRID":
             annotations = []
             for a in row["answers"]:
@@ -233,7 +241,7 @@ def main():
                     "question": row[query_column],
                     "generated_text": answer,
                     "output": output,
-                    "docs": docs_text,
+                    "docs": docs,
                     "gold_truth": row["answers"],
                     "gold_quotes": row["quotes"],
                     "answer": row["answers"][0]["answer"],
@@ -246,7 +254,7 @@ def main():
                     "question": row[query_column],
                     "generated_text": answer,
                     "output": output,
-                    "docs": docs_text,
+                    "docs": docs,
                     "answer": row["answer"],
                     "annotations": row["annotations"],
                 }
