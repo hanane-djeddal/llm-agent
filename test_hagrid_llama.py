@@ -69,7 +69,11 @@ def parse(message, begin, end):
 from agent import Agent
 from tools import SearchTool, SearchToolWithinDocs
 from tools_alce import SearchToolALCE
+import re
 
+def reposition_period_after_citation(text):
+    result = re.sub(r'\.\s*((\[[^\]]+\])+)(?!\S)', r' \1.', text)
+    return result
 
 def main():
     global RAGAGENT_MODEL_NAME,  TRAINING_CORPUS, model_result_file
@@ -145,7 +149,7 @@ def main():
         retireval_end_token = "[/ANSWER]"
     else:
         retireval_start_token = "[SEARCH]"
-        retireval_end_token = "[SEARCH]"
+        retireval_end_token = "[/SEARCH]"
     tools = [
         SearchTool(
             name="search",
@@ -220,6 +224,7 @@ def main():
                   for i in range(len(docs)):
                        if docs and docs[i]["docid"] in output:
                             output = output.replace(docs[i]["docid"],str(i+1))
+        output = reposition_period_after_citation(output)
         if dataset_name == "HAGRID":
             annotations = []
             for a in row["answers"]:
@@ -231,7 +236,7 @@ def main():
                     "question": row[query_column],
                     "generated_text": answer,
                     "output": output,
-                    "docs": docs_text,
+                    "docs": docs,
                     "gold_truth": row["answers"],
                     "gold_quotes": row["quotes"],
                     "answer": row["answers"][0]["answer"],
@@ -244,7 +249,7 @@ def main():
                     "question": row[query_column],
                     "generated_text": answer,
                     "output": output,
-                    "docs": docs_text,
+                    "docs": docs,
                     "answer": row["answer"],
                     "annotations": row["annotations"],
                 }

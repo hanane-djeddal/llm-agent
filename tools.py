@@ -244,7 +244,7 @@ class SearchTool(Tool):
 
     def process(self, query, **kwargs):
         docs_text, scores = self.search(query, **kwargs)
-        return docs_text, scores, f"\n[DOCS] {docs_text} [/DOCS]\n"
+        return docs_text, scores, f"\n [DOCS] {docs_text} [/DOCS]\n  "
 
 
 class SearchToolWithinDocs(Tool):
@@ -281,4 +281,4 @@ class SearchToolWithinDocs(Tool):
 
     def process(self, query, **kwargs):
         docs_text, scores = self.search(query, **kwargs)
-        return docs_text, scores, f"\n[DOCS] {docs_text} [/DOCS]\n"
+        return docs_text, scores, f"\n [DOCS] {docs_text} [/DOCS]\n "

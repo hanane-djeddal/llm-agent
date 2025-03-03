@@ -126,13 +126,9 @@ class Agent:
             output = self.tokenizer.batch_decode(output)[0]
             if output[-1] == "[":
                 output= output[:-1]
-            print("unmodified output for round ",i, ":", output)
-            if self.without_query_gen:
-                output = re.sub(query_pattern, '', output) 
-                if i == 0:
-                    output = "[ANSWER]"+question+"[/ANSWER]"
-                
-                print("Removing search tokens ",i, ":", output)
+            #print("unmodified output for round ",i, ":", output)    
+            if i == 0:
+                output=output.replace("[SEARCH]","[ANSWER][SEARCH]")
             if self.adjusted:
                 #print("unmodified output for round ",i, ":", output)
                 hallucinated_docs = output.find("[DOCS]")
@@ -141,6 +137,9 @@ class Agent:
                 output  =  re.sub(pattern, '', output)
                 #print("output for round ",i, ":", output)
             cuurent_output = output[last_gen:]
+            #if cuurent_output in output[:last_gen]:
+                #print("Redundunt output",cuurent_output)
+                #break
             #hallucinated_docs = cuurent_output.find("[DOCS]")
             #if generated_tool == False and hallucinated_docs != -1:
                 #cuurent_output = cuurent_output[:hallucinated_docs]
@@ -160,6 +159,9 @@ class Agent:
             last_gen = len(output)
             tool_id = self.detect_tool(cuurent_output)
             if tool_id is not None:
+                start = output.rfind(self.tools[tool_id].start_token)
+                if start == -1:
+                    break 
                 generated_tool = True
                 if self.use_tools:
                     if docs:
@@ -195,12 +197,15 @@ class Agent:
                     inputs = output
                     generated_tool = False
                 else:
-                    #inputs = output
-                    #generated_tool = False
-                    #inputs = inputs.replace("<|endoftext|>","")
-                    #inputs = inputs.replace("</s>","")
-                    #inputs = inputs +"[SEARCH]"
-                    break
+                    inputs = output
+                    generated_tool = False
+                    inputs = inputs.replace("<|endoftext|>","")
+                    inputs = inputs.replace("</s>","")
+                    inputs = inputs +"[SEARCH]"
+                    #print("modified output without tool",inputs)
+                    #break
+            if i == 0:
+                inputs=inputs.replace("[ANSWER][SEARCH]","[SEARCH]")
             inputs = inputs.replace("<|endoftext|>","")
             inputs = inputs.replace("</s>","")
             #print("---inputs", inputs)
