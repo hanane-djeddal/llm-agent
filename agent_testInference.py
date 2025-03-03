@@ -177,10 +177,7 @@ class Agent:
                 output = "".join(parts) 
             if output[-1] == "[":
                 output= output[:-1]
-            print("unmodified output for round ",i, ":", output)
-            if self.empty_query:                 
-                output = re.sub(query_pattern, "[SEARCH]"+question+"[/SEARCH]", output)
-                print("Removing search tokens ",i, ":", output)
+            #print("unmodified output for round ",i, ":", output)
             if self.adjusted:
                 #print("unmodified output for round ",i, ":", output)
                 hallucinated_docs = output.find("[DOCS]")
@@ -189,6 +186,12 @@ class Agent:
                 output  =  re.sub(pattern, '', output)
                 #print("output for round ",i, ":", output)
             cuurent_output = output[last_gen:]
+            if cuurent_output in output[:last_gen]:
+                print("Redundunt output",cuurent_output)
+                break
+            if self.empty_query:
+                output = re.sub(query_pattern, "[SEARCH]"+question+"[/SEARCH]", output)
+                #print("Removing search tokens ",i, ":", output)
             if self.adjusted:
                 patternA = r'\[ANSWER\](.*?)\[/ANSWER\]'
                 matches = re.findall(patternA, cuurent_output, re.DOTALL)
@@ -237,12 +240,17 @@ class Agent:
                     inputs = output
                     generated_tool = False
                 else:
-                    break
+                    inputs = output
+                    generated_tool = False
+                    inputs = inputs.replace("<|endoftext|>","")
+                    inputs = inputs.replace("</s>","")
+                    inputs = inputs +"[SEARCH]"
+                    #break
             inputs = inputs.replace("<|endoftext|>","")
             inputs = inputs.replace("</s>","")
             if self.empty_query:                 
-                output = re.sub(query_pattern, "[SEARCH][/SEARCH]", output)
-                print("---Empty search for next round inputs", inputs)
+                inputs = re.sub(query_pattern, "[SEARCH][/SEARCH]", inputs)
+                #print("---Empty search for next round inputs", inputs)
             inputs = self.tokenizer(
                  inputs, return_tensors="pt", add_special_tokens=False, truncation=True
             )["input_ids"] 
