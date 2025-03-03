@@ -67,7 +67,6 @@ def parse(message, begin, end):
 
 from agent_testInference  import Agent
 from tools import SearchTool, SearchToolWithinDocs
-from tools_alce import SearchToolALCE
 
 import re
 
@@ -121,7 +120,7 @@ def test_alce_docs_gtr():
     parser.add_argument("--nb_rounds", type=int, default=4)
     parser.add_argument("--nb_docs", type=int, default=3)
     parser.add_argument("--resume_from_file", type=str, default=None)
-    parser.add_argument("--inference_variant", type=str, default=None, choices=["sft","agent", "without_query"])
+    parser.add_argument("--inference_variant", type=str, default=None, choices=["sft","agent", "without_query","empty_query"])
     args = parser.parse_args()
     src.slurm.init_distributed_mode(args)
 
@@ -178,6 +177,7 @@ def test_alce_docs_gtr():
         manual_stop_words= False,
         without_query_gen = (args.inference_variant == "without_query"),
         one_round= (args.inference_variant == "sft"),
+        empty_query = (args.inference_variant == "empty_query"),
     )
 
     kwargs = {"do_sample": True, "top_p": 0.5, "max_new_tokens": 1000}

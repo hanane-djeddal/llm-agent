@@ -60,6 +60,7 @@ class Agent:
         manual_stop_words= False,
         without_query_gen = None,
         one_round= None,    
+        empty_query = None,
 ):
 
         self.model = model
@@ -73,6 +74,7 @@ class Agent:
         self.train_corpus = train_corpus
         self.without_query_gen = without_query_gen
         self.one_round = one_round
+        self.empty_query = empty_query
         stop_words = self.get_stop_token()
         stop_words_ids = [
             self.tokenizer(stop_word, return_tensors="pt", add_special_tokens=False)[
@@ -175,10 +177,10 @@ class Agent:
                 output = "".join(parts) 
             if output[-1] == "[":
                 output= output[:-1]
-            #print("unmodified output for round ",i, ":", output)
-            #if self.without_query_gen:                 
-                #output = re.sub(query_pattern, '', output)
-                #print("Removing search tokens ",i, ":", output)
+            print("unmodified output for round ",i, ":", output)
+            if self.empty_query:                 
+                output = re.sub(query_pattern, "[SEARCH]"+question+"[/SEARCH]", output)
+                print("Removing search tokens ",i, ":", output)
             if self.adjusted:
                 #print("unmodified output for round ",i, ":", output)
                 hallucinated_docs = output.find("[DOCS]")
@@ -238,7 +240,9 @@ class Agent:
                     break
             inputs = inputs.replace("<|endoftext|>","")
             inputs = inputs.replace("</s>","")
-            #print("---inputs", inputs)
+            if self.empty_query:                 
+                output = re.sub(query_pattern, "[SEARCH][/SEARCH]", output)
+                print("---Empty search for next round inputs", inputs)
             inputs = self.tokenizer(
                  inputs, return_tensors="pt", add_special_tokens=False, truncation=True
             )["input_ids"] 
