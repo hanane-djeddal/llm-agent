@@ -111,7 +111,9 @@ class Agent:
         pattern = r'\[DOCS\].*?\[/DOCS\]'
         query_pattern = r'\[SEARCH\].*?\[/SEARCH\]'
         if self.add_instruction:
-            message = [{"role": "user", "content": question}, {"role": "system", "content":"Given the user query, alternate between generating a subquery between [SEARCH][/SEARCH] tokens that tackles an aspect of the user query, then use the provided doucments [DOCS][/DOCS] to generate an answer to the subquery and cite the documents you use. Repeat the process until the query is fully answered"}]
+            instruction= "Given the user query, alternate between generating a subquery between [SEARCH][/SEARCH] tokens that tackles an aspect of the user query, then use the provided doucments [DOCS][/DOCS] to generate an answer to the subquery and cite the documents you use. Repeat the process until the query is fully answered"
+            message = [{"role": "user", "content": question}, {"role": "system", "content":instruction}]
+            print("Adding system instruction:", instruction)
         else:
             message = [{"role": "user", "content": question}]
         inputs = self.tokenizer.apply_chat_template(
