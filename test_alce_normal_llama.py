@@ -117,6 +117,11 @@ def test_alce_docs_gtr():
         default =TRAINING_CORPUS,
         help="Corpus used for training",
     )
+    parser.add_argument(
+        "--add_instruction",
+        action="store_true",
+        help="Adds instruction to prompt",
+    )
     parser.add_argument("--nb_rounds", type=int, default=4)
     parser.add_argument("--nb_docs", type=int, default=3)
     parser.add_argument("--resume_from_file", type=str, default=None)
@@ -130,7 +135,9 @@ def test_alce_docs_gtr():
     logger.info(f"Loading Language model...{RAGAGENT_MODEL_NAME}")
     logger.info(f"Using ASAQ TEST SET")
     logger.info(f"Retrieval : GTR top 100 reranked")
+    logger.info(f"Adding instruction...{args.add_instruction}")
     tag = args.tag if args.tag else  args.ragnroll_model_name.split('/')[-1]
+    tag = tag+"_instruction_prompt" if args.add_instruction else tag
     logger.info(f"Used Tag {tag}")
     if args.validating_code:
         logger.info(f"Only running two iterations to test")
@@ -164,6 +171,7 @@ def test_alce_docs_gtr():
         adjusted= False,
         model_params = "7B",
         manual_stop_words= False,
+        add_instruction = args.add_instruction
     )
 
     kwargs = {"do_sample": True, "top_p": 0.5, "max_new_tokens": 1000}

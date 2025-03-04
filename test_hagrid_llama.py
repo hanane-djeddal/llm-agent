@@ -113,6 +113,11 @@ def main():
         default =TRAINING_CORPUS,
         help="Corpus used for training",
     )
+    parser.add_argument(
+        "--add_instruction",
+        action="store_true",
+        help="Adds instruction to prompt",
+    )
     args = parser.parse_args()
     results_path = os.environ['WORK'] +"/llm-agent/llama13/" 
     results_dir = args.output_dir if args.output_dir else results_path
@@ -123,6 +128,7 @@ def main():
     logger.info(f"Using HAGRID TEST SET")
     logger.info(f"Retrieval : BM25 + {args.ranker}")
     tag = args.tag if args.tag else  args.ragnroll_model_name.split('/')[-1]
+    tag = tag+"_instruction_prompt" if args.add_instruction else tag
     logger.info(f"Used Tag {tag}")
     logger.info(f"Inference without query : {args.inference_variant}")
     if args.validating_code:
@@ -170,7 +176,8 @@ def main():
         adjusted= False, #True,
         model_params = "7B",
         manual_stop_words= False,
-        without_query_gen = args.inference_variant == "without_query"
+        without_query_gen = args.inference_variant == "without_query",
+        add_instruction = args.add_instruction,
     )
     print("Adjusted", False)
     kwargs = {"do_sample": True, "top_p": 0.5, "max_new_tokens": 2000}

@@ -43,6 +43,7 @@ class Agent:
         model_params = "7B",
         manual_stop_words= False,
         without_query_gen = None,
+        add_instruction = None,
     ):
 
         self.model = model
@@ -55,6 +56,7 @@ class Agent:
         self.use_tools = use_tools
         self.train_corpus = train_corpus
         self.without_query_gen = without_query_gen
+        self.add_instruction = add_instruction
         stop_words = self.get_stop_token()
         stop_words_ids = [
             self.tokenizer(stop_word, return_tensors="pt", add_special_tokens=False)[
@@ -108,7 +110,10 @@ class Agent:
         used_docids = {}
         pattern = r'\[DOCS\].*?\[/DOCS\]'
         query_pattern = r'\[SEARCH\].*?\[/SEARCH\]'
-        message = [{"role": "user", "content": question}]
+        if self.add_instruction:
+            message = [{"role": "user", "content": question}, {"role": "system", "content":"Given the user query, alternate between generating a subquery between [SEARCH][/SEARCH] tokens that tackles an aspect of the user query, then use the provided doucments [DOCS][/DOCS] to generate an answer to the subquery and cite the documents you use. Repeat the process until the query is fully answered"}]
+        else:
+            message = [{"role": "user", "content": question}]
         inputs = self.tokenizer.apply_chat_template(
             message, tokenize=True, add_generation_prompt=True, return_tensors="pt", truncation=True
         )
