@@ -61,6 +61,7 @@ class Agent:
         without_query_gen = None,
         one_round= None,    
         empty_query = None,
+        add_instruction= None,
 ):
 
         self.model = model
@@ -75,6 +76,7 @@ class Agent:
         self.without_query_gen = without_query_gen
         self.one_round = one_round
         self.empty_query = empty_query
+        self.add_instruction=add_instruction
         stop_words = self.get_stop_token()
         stop_words_ids = [
             self.tokenizer(stop_word, return_tensors="pt", add_special_tokens=False)[
@@ -130,7 +132,12 @@ class Agent:
         used_docids = {}
         pattern = r'\[DOCS\].*?\[/DOCS\]'
         query_pattern = r'\[SEARCH\].*?\[/SEARCH\]'
-        message = [{"role": "user", "content": question}]
+        if self.add_instruction:
+            instruction= "Given the user query, provide a long answer that tackles different related aspects. To construct your answer, you will alternate between generating a subquery between [SEARCH][/SEARCH] tokens that describes what you will talk about, then use the provided doucments [DOCS][/DOCS] to generate an answer to the subquery and cite the documents you use. Repeat the process until the query is fully answered."
+            message = [{"role": "system", "content":instruction},{"role": "user", "content": question}]
+            print("Adding system instruction:", instruction)
+        else:
+            message = [{"role": "user", "content": question}]
         if self.without_query_gen or self.one_round:
             for_ret = self.tools[0].start_token+question+self.tools[0].end_token
             logger.info(f"First Retrieving docs using user query")
