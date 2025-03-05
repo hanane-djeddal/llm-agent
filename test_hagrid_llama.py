@@ -118,6 +118,11 @@ def main():
         action="store_true",
         help="Adds instruction to prompt",
     )
+    parser.add_argument(
+        "--retrieve_with_answer",
+        action="store_true",
+        help="use generated answers for retrieval",
+    )
     args = parser.parse_args()
     results_path = os.environ['WORK'] +"/llm-agent/llama13/" 
     results_dir = args.output_dir if args.output_dir else results_path
@@ -129,6 +134,7 @@ def main():
     logger.info(f"Retrieval : BM25 + {args.ranker}")
     tag = args.tag if args.tag else  args.ragnroll_model_name.split('/')[-1]
     tag = tag+"_instruction_prompt" if args.add_instruction else tag
+    tag = tag +"_using_answer_for_retrieval_" if args.retrieve_with_answer else tag
     logger.info(f"Used Tag {tag}")
     logger.info(f"Inference without query : {args.inference_variant}")
     if args.validating_code:
@@ -153,6 +159,9 @@ def main():
     if args.inference_variant == "without_query":
         retireval_start_token ="[ANSWER]"
         retireval_end_token = "[/ANSWER]"
+    elif args.retrieve_with_answer:
+        retireval_start_token ="[ANSWER]"
+        retireval_end_token = "[/SEARCH]"
     else:
         retireval_start_token = "[ANSWER]"
         retireval_end_token = "[/SEARCH]"

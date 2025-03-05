@@ -122,6 +122,11 @@ def test_alce_docs_gtr():
         action="store_true",
         help="Adds instruction to prompt",
     )
+    parser.add_argument(
+        "--retrieve_with_answer",
+        action="store_true",
+        help="use generated answers for retrieval",
+    )
     parser.add_argument("--nb_rounds", type=int, default=4)
     parser.add_argument("--nb_docs", type=int, default=3)
     parser.add_argument("--resume_from_file", type=str, default=None)
@@ -138,13 +143,20 @@ def test_alce_docs_gtr():
     logger.info(f"Adding instruction...{args.add_instruction}")
     tag = args.tag if args.tag else  args.ragnroll_model_name.split('/')[-1]
     tag = tag+"_instruction_prompt" if args.add_instruction else tag
+    tag = tag +"_using_answer_for_retrieval_" if args.retrieve_with_answer else tag
     logger.info(f"Used Tag {tag}")
     if args.validating_code:
         logger.info(f"Only running two iterations to test")
         tag = tag + "code_validation" 
+    if args.retrieve_with_answer:
+        retireval_start_token ="[ANSWER]"
+        retireval_end_token = "[/SEARCH]"
+    else: 
+        retireval_start_token ="[SEARCH]"
+        retireval_end_token = "[/SEARCH]"
     tools = [
         SearchToolWithinDocs(
-            name="search", start_token="[ANSWER]", end_token="[/SEARCH]"
+            name="search", start_token=retireval_start_token,end_token=retireval_end_token,
         )
     ]
     config = PeftConfig.from_pretrained(
