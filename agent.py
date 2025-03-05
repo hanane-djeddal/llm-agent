@@ -111,7 +111,7 @@ class Agent:
         pattern = r'\[DOCS\].*?\[/DOCS\]'
         query_pattern = r'\[SEARCH\].*?\[/SEARCH\]'
         if self.add_instruction:
-            instruction= "Given the user query, alternate between generating a subquery between [SEARCH][/SEARCH] tokens that helps explore further aspects of the user query, then use the provided doucments [DOCS][/DOCS] to generate an answer to the subquery and cite the documents you use. Repeat the process until the query is fully answered. Use the answers you generate to decide which subquery to generate next."
+            instruction= "Given the user query, provide a long answer that tackles different related aspects. You will alternate between generating a subquery between [SEARCH][/SEARCH] tokens that describes what you will talk about, then use the provided doucments [DOCS][/DOCS] to generate an answer to the subquery and cite the documents you use. Repeat the process until the query is fully answered."
             message = [{"role": "system", "content":instruction},{"role": "user", "content": question}]
             print("Adding system instruction:", instruction)
         else:
