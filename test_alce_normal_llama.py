@@ -141,9 +141,10 @@ def test_alce_docs_gtr():
     logger.info(f"Using ASAQ TEST SET")
     logger.info(f"Retrieval : GTR top 100 reranked")
     logger.info(f"Adding instruction...{args.add_instruction}")
+    logger.info(f"Using answer for retrieval...{args.retrieve_with_answer}")
     tag = args.tag if args.tag else  args.ragnroll_model_name.split('/')[-1]
     tag = tag+"_instruction_prompt" if args.add_instruction else tag
-    tag = tag +"_using_answer_for_retrieval_" if args.retrieve_with_answer else tag
+    tag = tag +"_using_answer_for_retrieval" if args.retrieve_with_answer else tag
     logger.info(f"Used Tag {tag}")
     if args.validating_code:
         logger.info(f"Only running two iterations to test")

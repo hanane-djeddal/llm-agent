@@ -111,7 +111,7 @@ class Agent:
         pattern = r'\[DOCS\].*?\[/DOCS\]'
         query_pattern = r'\[SEARCH\].*?\[/SEARCH\]'
         if self.add_instruction:
-            instruction= "Given the user query, provide a long answer that tackles different related aspects. To construct your answer, you will alternate between generating a subquery between [SEARCH][/SEARCH] tokens that describes what you will talk about, then use the provided doucments [DOCS][/DOCS] to generate an answer to the subquery and cite the documents you use. Repeat the process until the query is fully answered."
+            instruction= "Given the user query, provide a long answer that tackles different related aspects. To construct your answer, you will alternate between generating a subquery between [SEARCH][/SEARCH] tokens that describes what you will talk about, then use the provided doucments [DOCS][/DOCS] to generate an answer to the subquery and cite the documents you use. Repeat the process until the query is fully answered. Use your generated answer to generate the next subquery based on what you intend to tackle next."
             message = [{"role": "system", "content":instruction},{"role": "user", "content": question}]
             print("Adding system instruction:", instruction)
         else:
@@ -133,7 +133,7 @@ class Agent:
             output = self.tokenizer.batch_decode(output)[0]
             if output[-1] == "[":
                 output= output[:-1]
-            print("unmodified output for round ",i, ":", output)    
+            #print("unmodified output for round ",i, ":", output)    
             if i == 0:
                 output=output.replace("[SEARCH]","[ANSWER][SEARCH]")
             if self.adjusted:

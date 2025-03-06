@@ -257,6 +257,7 @@ class SearchToolWithinDocs(Tool):
             self.ranker = MonoT5(device="cuda")
 
     def search(self, query, k=3, initial_docs=[]):
+        #print("------ using as query:",query)
         ranked_doc = self.ranker.rerank(query, initial_docs)[:k]
         scores = [i["score"] for i in ranked_doc]
         docs = []
