@@ -129,6 +129,12 @@ def test_alce_docs_gtr():
         action="store_true",
         help="use generated answers for retrieval",
     )
+    parser.add_argument(
+        "--gen_config",
+        type=str,
+        default =None,
+        help="Config to pass to the generator",
+    )
     parser.add_argument("--nb_rounds", type=int, default=4)
     parser.add_argument("--nb_docs", type=int, default=3)
     parser.add_argument("--resume_from_file", type=str, default=None)
@@ -157,6 +163,12 @@ def test_alce_docs_gtr():
     else: 
         retireval_start_token ="[SEARCH]"
         retireval_end_token = "[/SEARCH]"
+    if args.gen_config:
+        kwargs = json.loads(args.gen_config)
+    else:
+        kwargs = {"do_sample": True, "top_p": 0.5, "max_new_tokens": 1000}
+    logger.info(f"Generator config...{kwargs}")
+
     tools = [
         SearchToolWithinDocs(
             name="search", start_token=retireval_start_token,end_token=retireval_end_token, reranker=args.ranker,
@@ -189,7 +201,6 @@ def test_alce_docs_gtr():
         add_instruction = args.add_instruction
     )
 
-    kwargs = {"do_sample": True, "top_p": 0.5, "max_new_tokens": 1000}
 
     if dataset_name == "HAGRID":
         dataset = datasets.load_dataset("miracl/hagrid", split="dev")
@@ -291,9 +302,7 @@ def test_alce_docs_gtr():
     end = time.time()
 
     execution_time = (end - start) / 60
-    results_df = {"data": results}
-    # results_df = pd.DataFrame.from_dict(results)
-    # results_df.to_csv(results_file)
+    results_df = {"data": results, "params":vars(args)}
 
     results_file = results_dir+"all_testasqa_"+tag+"_"+str(args.nb_rounds)+"rounds_"+str(args.nb_docs)+"docs.json" 
     with open(results_file, "w") as writer:

@@ -113,6 +113,12 @@ def main():
         default =TRAINING_CORPUS,
         help="Corpus used for training",
     )
+    parser.add_argument(
+        "--gen_config",
+        type=str,
+        default =None,
+        help="Config to pass to the generator",
+    )
     args = parser.parse_args()
     results_path = os.environ['WORK'] +"/llm-agent/llama13/" 
     results_dir = args.output_dir if args.output_dir else results_path
@@ -128,6 +134,11 @@ def main():
     if args.validating_code:
         logger.info(f"Only running two iterations to test")
         tag = tag + "code_validation"
+
+    if args.gen_config:
+        kwargs = json.loads(args.gen_config)
+    else:
+        kwargs = {"do_sample": True, "top_p": 0.5, "max_new_tokens": 1000}
     SEED = 42
     set_seed(SEED)
     dataset_name = "HAGRID"  # "HAGRID"   "ALCE"
@@ -176,7 +187,6 @@ def main():
         empty_query = (args.inference_variant == "empty_query"),
     )
     print("Adjusted", False)
-    kwargs = {"do_sample": True, "top_p": 0.5, "max_new_tokens": 2000}
 
     if dataset_name == "HAGRID":
         dataset = datasets.load_from_disk(os.environ["WORK"] + "/hagrid-dev") #load_dataset("miracl/hagrid", split="dev")
@@ -268,9 +278,8 @@ def main():
     end = time.time()
 
     execution_time = (end - start) / 60
-    results_df = {"data": results}
-    # results_df = pd.DataFrame.from_dict(results)
-    # results_df.to_csv(results_file)
+    results_df = {"data": results, "params":vars(args)}
+
     results_file = results_dir + "all_testHagrid_"+tag+"_"+str(args.nb_rounds)+"rounds_"+str(args.nb_docs)+"docs"+variant_tag+".json"  # "agent_hagrid_3doc_2rounds.csv"
     with open(results_file, "w") as writer:
         json.dump(results_df, writer)

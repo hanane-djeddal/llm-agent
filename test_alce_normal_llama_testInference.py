@@ -117,6 +117,12 @@ def test_alce_docs_gtr():
         default =TRAINING_CORPUS,
         help="Corpus used for training",
     )
+    parser.add_argument(
+        "--gen_config",
+        type=str,
+        default =None,
+        help="Config to pass to the generator",
+    )
     parser.add_argument("--nb_rounds", type=int, default=4)
     parser.add_argument("--nb_docs", type=int, default=3)
     parser.add_argument("--resume_from_file", type=str, default=None)
@@ -137,6 +143,10 @@ def test_alce_docs_gtr():
     if args.validating_code:
         logger.info(f"Only running two iterations to test")
         tag = tag + "code_validation" 
+    if args.gen_config:
+        kwargs = json.loads(args.gen_config)
+    else:
+        kwargs = {"do_sample": True, "top_p": 0.5, "max_new_tokens": 1000}
 
     if args.inference_variant in ["sft", "without_query"]:
         retireval_start_token ="[ANSWER]"
@@ -179,8 +189,6 @@ def test_alce_docs_gtr():
         one_round= (args.inference_variant == "sft"),
         empty_query = (args.inference_variant == "empty_query"),
     )
-
-    kwargs = {"do_sample": True, "top_p": 0.5, "max_new_tokens": 1000}
 
     if dataset_name == "HAGRID":
         dataset = datasets.load_dataset("miracl/hagrid", split="dev")
@@ -285,9 +293,7 @@ def test_alce_docs_gtr():
     end = time.time()
 
     execution_time = (end - start) / 60
-    results_df = {"data": results}
-    # results_df = pd.DataFrame.from_dict(results)
-    # results_df.to_csv(results_file)
+    results_df = {"data": results, "params":vars(args)}
 
     results_file = results_dir+"all_testasqa_"+tag+"_"+str(args.nb_rounds)+"rounds_"+str(args.nb_docs)+"docs"+variant_tag+".json" 
     with open(results_file, "w") as writer:
