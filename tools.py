@@ -44,10 +44,10 @@ class GTR:
         ranked_docs = []
         for idx in ranked_indices:
             doc_to_save = docs[idx]  # Retrieve the original doc (with docid, title, text)
-            if text_field != "text":
-                doc_to_save["text"] = doc_to_save.pop(text_field)
             if "docid" not in doc_to_save.keys():
                 doc_to_save["docid"] = doc_to_save.pop("id")
+            if text_field != "text":
+                doc_to_save["text"] = doc_to_save.pop(text_field)
             doc_to_save["score"] = float(scores[idx])  # Add the score
             ranked_docs.append(doc_to_save)
 
