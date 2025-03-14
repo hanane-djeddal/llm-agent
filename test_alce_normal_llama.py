@@ -139,6 +139,18 @@ def test_alce_docs_gtr():
         "--diverse_query_only",
         action="store_true",
         help="Only apply diversity config to query",
+    )    
+    parser.add_argument(
+        "--startindex",
+        type=int,
+        default=0,
+        help="Index to start iterations",
+    )
+    parser.add_argument(
+        "--stopindex",
+        type=int,
+        default=None,
+        help="Index to stop iterations",
     )
     parser.add_argument("--nb_rounds", type=int, default=4)
     parser.add_argument("--nb_docs", type=int, default=3)
@@ -218,16 +230,17 @@ def test_alce_docs_gtr():
         query_column = "question"
 
     start = time.time()
-    start_idx = 0
+    start_idx = args.startindex
     if args.resume_from_file:
         with open(args.resume_from_file) as f:
             data_with_config = json.load(f)
         results = data_with_config["data"]
         start_idx = len(results)
         print("Resuming test from file:",args.resume_from_file)
-        print("Starting Iteration:",start_idx)
     else:
         results = []
+        
+    print("Starting Iteration:",start_idx)
     for itera, row in enumerate(tqdm(dataset)):
         if itera < start_idx:
             continue
@@ -306,14 +319,22 @@ def test_alce_docs_gtr():
             results_file = results_dir+"intr_testasqa_"+tag+"_"+str(args.nb_rounds)+"rounds_"+str(args.nb_docs)+"docs.json"  # "agent_hagrid_3doc_2rounds.csv"
             with open(results_file, "w") as writer:
                 json.dump(results_df, writer)
+
+        if args.stopindex and args.stopindex == itera:
+            logger.info(f"Stoping after {args.stopindex + 1} iterartion, index {args.stopindex} finished")
+            results_df = {"data": results}
+            results_file = results_dir+str(args.stopindex)+"intr_testasqa_"+tag+"_"+str(args.nb_rounds)+"rounds_"+str(args.nb_docs)+"docs.json"  # "agent_hagrid_3doc_2rounds.csv"
+            with open(results_file, "w") as writer:
+                json.dump(results_df, writer)
+            break
     end = time.time()
 
     execution_time = (end - start) / 60
     results_df = {"data": results, "params":vars(args)}
-
-    results_file = results_dir+"all_testasqa_"+tag+"_"+str(args.nb_rounds)+"rounds_"+str(args.nb_docs)+"docs.json" 
-    with open(results_file, "w") as writer:
-        json.dump(results_df, writer)
+    if not args.stopindex:
+        results_file = results_dir+"all_testasqa_"+tag+"_"+str(args.nb_rounds)+"rounds_"+str(args.nb_docs)+"docs.json" 
+        with open(results_file, "w") as writer:
+            json.dump(results_df, writer)
 
     print("Result file:", results_file)
     print("execution_time:", execution_time)
