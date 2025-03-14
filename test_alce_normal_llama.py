@@ -322,16 +322,17 @@ def test_alce_docs_gtr():
 
         if args.stopindex and args.stopindex == itera:
             logger.info(f"Stoping after {args.stopindex + 1} iterartion, index {args.stopindex} finished")
-            results_df = {"data": results}
-            results_file = results_dir+str(args.startindex)+"-"+str(args.stopindex)+"intr_testasqa_"+tag+"_"+str(args.nb_rounds)+"rounds_"+str(args.nb_docs)+"docs.json"  # "agent_hagrid_3doc_2rounds.csv"
-            with open(results_file, "w") as writer:
-                json.dump(results_df, writer)
             break
     end = time.time()
 
     execution_time = (end - start) / 60
     results_df = {"data": results, "params":vars(args)}
-    if not args.stopindex:
+    if args.stopindex:
+        assert (args.stopindex == itera)
+        results_file = results_dir+str(args.startindex)+"-"+str(args.stopindex)+"intr_testasqa_"+tag+"_"+str(args.nb_rounds)+"rounds_"+str(args.nb_docs)+"docs.json"  # "agent_hagrid_3doc_2rounds.csv"
+        with open(results_file, "w") as writer:
+            json.dump(results_df, writer)
+    else:
         results_file = results_dir+"all_testasqa_"+tag+"_"+str(args.nb_rounds)+"rounds_"+str(args.nb_docs)+"docs.json" 
         with open(results_file, "w") as writer:
             json.dump(results_df, writer)
