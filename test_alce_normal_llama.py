@@ -135,6 +135,11 @@ def test_alce_docs_gtr():
         default =None,
         help="Config to pass to the generator",
     )
+    parser.add_argument(
+        "--diverse_query_only",
+        action="store_true",
+        help="Only apply diversity config to query",
+    )
     parser.add_argument("--nb_rounds", type=int, default=4)
     parser.add_argument("--nb_docs", type=int, default=3)
     parser.add_argument("--resume_from_file", type=str, default=None)
@@ -153,6 +158,7 @@ def test_alce_docs_gtr():
     tag = args.tag if args.tag else  args.ragnroll_model_name.split('/')[-1]
     tag = tag+"_instruction_prompt" if args.add_instruction else tag
     tag = tag +"_using_answer_for_retrieval" if args.retrieve_with_answer else tag
+    tag = tag +"_diverse_query_only" if args.diverse_query_only else tag
     logger.info(f"Used Tag {tag}")
     if args.validating_code:
         logger.info(f"Only running two iterations to test")
@@ -167,7 +173,7 @@ def test_alce_docs_gtr():
         kwargs = json.loads(args.gen_config)
     else:
         kwargs = {"do_sample": True, "top_p": 0.5, "max_new_tokens": 1000}
-    logger.info(f"Generator config...{kwargs}")
+    logger.info(f"Generator config...{kwargs} to query only {args.diverse_query_only}")
 
     tools = [
         SearchToolWithinDocs(
@@ -198,7 +204,8 @@ def test_alce_docs_gtr():
         adjusted= False,
         model_params = "7B",
         manual_stop_words= False,
-        add_instruction = args.add_instruction
+        add_instruction = args.add_instruction,
+        diverse_query_only = args.diverse_query_only,
     )
 
 

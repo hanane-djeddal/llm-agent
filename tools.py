@@ -5,6 +5,7 @@ import transformers
 import numpy as np
 import copy
 import os
+import re
 from sentence_transformers import SentenceTransformer
 os.environ['HF_HOME'] = os.environ['WORK'] + '/.cache/huggingface'
 import logging
@@ -44,10 +45,10 @@ class GTR:
         ranked_docs = []
         for idx in ranked_indices:
             doc_to_save = docs[idx]  # Retrieve the original doc (with docid, title, text)
-            if text_field != "text":
-                doc_to_save["text"] = doc_to_save.pop(text_field)
             if "docid" not in doc_to_save.keys():
                 doc_to_save["docid"] = doc_to_save.pop("id")
+            #if text_field != "text":
+                doc_to_save["text"] = doc_to_save.pop(text_field)
             doc_to_save["score"] = float(scores[idx])  # Add the score
             ranked_docs.append(doc_to_save)
 
@@ -221,6 +222,9 @@ class SearchTool(Tool):
         #self.ranker = MonoT5(device="cuda")
 
     def search(self, query, k=3):
+        query = query.replace("[/ANSWER][SEARCH]","")
+        citation_pattern =r'\[\d+#\d+(?:\s*[-,]\s*\d+#\d+)*\](?:\[\d+#\d+\])*'
+        query=re.sub(citation_pattern, "", query) 
         docs = self.searcher.search(query, k=100)
         retrieved_docid = [i.docid for i in docs]
         docs_text = [
@@ -257,6 +261,9 @@ class SearchToolWithinDocs(Tool):
             self.ranker = MonoT5(device="cuda")
 
     def search(self, query, k=3, initial_docs=[]):
+        query = query.replace("[/ANSWER][SEARCH]","")
+        citation_pattern =r'\[\d+(?:\s*[-,]\s*\d+)*\](?:\[\d+\])*'
+        query=re.sub(citation_pattern, "", query) 
         #print("------ using as query:",query)
         ranked_doc = self.ranker.rerank(query, initial_docs)[:k]
         scores = [i["score"] for i in ranked_doc]
@@ -266,8 +273,8 @@ class SearchToolWithinDocs(Tool):
                 added_docid = {"docid": doc["id"]}
                 doc = {**added_docid, **doc}
                 del doc["id"]            
-            else:
-                print("keys", doc.keys())
+            #else:
+                #print("keys", doc.keys())
             if "summary" in doc.keys():
                 del doc["summary"]
             if "extraction" in doc.keys():

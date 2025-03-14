@@ -44,6 +44,7 @@ class Agent:
         manual_stop_words= False,
         without_query_gen = None,
         add_instruction = None,
+        diverse_query_only = False,
     ):
 
         self.model = model
@@ -57,6 +58,7 @@ class Agent:
         self.train_corpus = train_corpus
         self.without_query_gen = without_query_gen
         self.add_instruction = add_instruction
+        self.diverse_query_only = diverse_query_only
         stop_words = self.get_stop_token()
         stop_words_ids = [
             self.tokenizer(stop_word, return_tensors="pt", add_special_tokens=False)[
@@ -111,7 +113,7 @@ class Agent:
         pattern = r'\[DOCS\].*?\[/DOCS\]'
         query_pattern = r'\[SEARCH\].*?\[/SEARCH\]'
         if self.add_instruction:
-            instruction= "Given the user query, provide a long answer that tackles different related aspects. To construct your answer, you will alternate between generating a subquery between [SEARCH][/SEARCH] tokens that describes what you will talk about, then use the provided doucments [DOCS][/DOCS] to generate an answer to the subquery and cite the documents you use. Repeat the process until the query is fully answered. Use your generated answer to generate the next subquery based on what you intend to tackle next."
+            instruction= "Given the user query, provide a long answer that tackles different related aspects. To construct your answer, you will alternate between generating a subquery between [SEARCH][/SEARCH] tokens that describes what you will talk about, then use the provided doucments [DOCS][/DOCS] to generate an answer to the subquery and cite the documents you use. Repeat the process until the query is fully answered. Use your generated answer to generate the next subquery based on what you intend to tackle next. The subqueries should be diverse and different from previous ones and allow you to gather new information."
             message = [{"role": "system", "content":instruction},{"role": "user", "content": question}]
             print("Adding system instruction:", instruction)
         else:
@@ -123,13 +125,19 @@ class Agent:
         #print("max length:", self.tokenizer.model_max_length)
         last_gen = 0
         generated_tool = False
+        if self.diverse_query_only:
+            query_gen_kw = kwargs
+            standard_gen = {"do_sample": True, "top_p": 0.5, "max_new_tokens": 1000}
         for i in range(self.rounds):
             #print("round:",i)
+            #print("~~~~~~~~ gen kw",kwargs)
             output = self.model.generate(
                 inputs.to(self.model.device),
                 stopping_criteria=self.stopping_criteria,
                 **kwargs,
             )
+            if self.diverse_query_only:
+                kwargs = standard_gen
             output = self.tokenizer.batch_decode(output)[0]
             if output[-1] == "[":
                 output= output[:-1]
@@ -211,6 +219,8 @@ class Agent:
                     inputs = inputs +"[SEARCH]"
                     #print("modified output without tool",inputs)
                     #break
+                if self.diverse_query_only:
+                    kwargs = query_gen_kw
             if i == 0:
                 inputs=inputs.replace("[ANSWER][SEARCH]","[SEARCH]")
             inputs = inputs.replace("<|endoftext|>","")
