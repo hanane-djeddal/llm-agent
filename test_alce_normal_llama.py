@@ -323,7 +323,7 @@ def test_alce_docs_gtr():
         if args.stopindex and args.stopindex == itera:
             logger.info(f"Stoping after {args.stopindex + 1} iterartion, index {args.stopindex} finished")
             results_df = {"data": results}
-            results_file = results_dir+str(args.stopindex)+"intr_testasqa_"+tag+"_"+str(args.nb_rounds)+"rounds_"+str(args.nb_docs)+"docs.json"  # "agent_hagrid_3doc_2rounds.csv"
+            results_file = results_dir+str(args.startindex)+"-"+str(args.stopindex)+"intr_testasqa_"+tag+"_"+str(args.nb_rounds)+"rounds_"+str(args.nb_docs)+"docs.json"  # "agent_hagrid_3doc_2rounds.csv"
             with open(results_file, "w") as writer:
                 json.dump(results_df, writer)
             break
