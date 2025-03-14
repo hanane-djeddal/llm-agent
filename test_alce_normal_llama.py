@@ -321,7 +321,7 @@ def test_alce_docs_gtr():
                 json.dump(results_df, writer)
 
         if args.stopindex and args.stopindex == itera:
-            logger.info(f"Stoping after {args.stopindex + 1} iterartion, index {args.stopindex} finished")
+            logger.info(f"Stoping after {args.stopindex - args.startindex + 1} iterartion, index {args.stopindex} finished")
             break
     end = time.time()
 
