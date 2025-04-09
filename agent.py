@@ -180,8 +180,8 @@ class Agent:
                     matches = re.findall(query_pattern, cuurent_output, re.DOTALL)
                     if len(matches):
                         new_subquery = "[SEARCH]"+question+" "+matches[-1]+"[/SEARCH]"
-                        cuurent_output=re.sub(query_pattern,new_subquery,cuurent_output)
-                        print("adding user query :  cuurent_output")
+                        output=re.sub(query_pattern,new_subquery,cuurent_output)
+                        print("adding user query : ",output)
                 start = output.rfind(self.tools[tool_id].start_token)
                 if start == -1:
                     break 
@@ -218,7 +218,7 @@ class Agent:
                 if self.add_user_query:
                     if len(matches):
                         inputs=inputs.replace(new_subquery,"[SEARCH]"+matches[-1]+"[/SEARCH]")
-                        print("readjusting  query :  cuurent_output")
+                        print("readjusting  query", inputs)
             else:
                 if self.adjusted:
                     inputs = output
