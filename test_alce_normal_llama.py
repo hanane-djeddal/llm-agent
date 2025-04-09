@@ -139,6 +139,11 @@ def test_alce_docs_gtr():
         "--diverse_query_only",
         action="store_true",
         help="Only apply diversity config to query",
+    )
+    parser.add_argument(
+        "--add_user_query",
+        action="store_true",
+        help="adding user query to the subqueries",
     )    
     parser.add_argument(
         "--startindex",
@@ -167,6 +172,7 @@ def test_alce_docs_gtr():
     logger.info(f"Retrieval : {args.ranker} top 100 reranked")
     logger.info(f"Adding instruction...{args.add_instruction}")
     logger.info(f"Using answer for retrieval...{args.retrieve_with_answer}")
+    logger.info(f"Appending user query to subqueries...{args.add_user_query}")
     tag = args.tag if args.tag else  args.ragnroll_model_name.split('/')[-1]
     tag = tag+"_instruction_prompt" if args.add_instruction else tag
     tag = tag +"_using_answer_for_retrieval" if args.retrieve_with_answer else tag
@@ -218,6 +224,7 @@ def test_alce_docs_gtr():
         manual_stop_words= False,
         add_instruction = args.add_instruction,
         diverse_query_only = args.diverse_query_only,
+        add_user_query = args.add_user_query
     )
 
 
@@ -328,7 +335,7 @@ def test_alce_docs_gtr():
     execution_time = (end - start) / 60
     results_df = {"data": results, "params":vars(args)}
     if args.stopindex:
-        assert (args.stopindex == itera)
+        #assert (args.stopindex == itera)
         results_file = results_dir+str(args.startindex)+"-"+str(args.stopindex)+"intr_testasqa_"+tag+"_"+str(args.nb_rounds)+"rounds_"+str(args.nb_docs)+"docs.json"  # "agent_hagrid_3doc_2rounds.csv"
         with open(results_file, "w") as writer:
             json.dump(results_df, writer)

@@ -117,6 +117,8 @@ def test_alce_docs_gtr():
         default =TRAINING_CORPUS,
         help="Corpus used for training",
     )
+    
+    parser.add_argument("--ranker", type=str, default="GTR", choices=["GTR","MonoT5"])
     parser.add_argument(
         "--gen_config",
         type=str,
@@ -136,7 +138,7 @@ def test_alce_docs_gtr():
 
     logger.info(f"Loading Language model...{RAGAGENT_MODEL_NAME}")
     logger.info(f"Using ASAQ TEST SET")
-    logger.info(f"Retrieval : GTR top 100 reranked")
+    logger.info(f"Retrieval : {args.ranker} top 100 reranked")
     tag = args.tag if args.tag else  args.ragnroll_model_name.split('/')[-1]
     logger.info(f"Used Tag {tag}")
     logger.info(f"Inference without query : {args.inference_variant}")
@@ -158,7 +160,7 @@ def test_alce_docs_gtr():
 
     tools = [
         SearchToolWithinDocs(
-            name="search", start_token=retireval_start_token, end_token=retireval_end_token
+            name="search", start_token=retireval_start_token, end_token=retireval_end_token, reranker=args.ranker,
         )
     ]
     config = PeftConfig.from_pretrained(

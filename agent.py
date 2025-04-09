@@ -45,6 +45,7 @@ class Agent:
         without_query_gen = None,
         add_instruction = None,
         diverse_query_only = False,
+        add_user_query = None,
     ):
 
         self.model = model
@@ -59,6 +60,7 @@ class Agent:
         self.without_query_gen = without_query_gen
         self.add_instruction = add_instruction
         self.diverse_query_only = diverse_query_only
+        self.add_user_query =add_user_query
         stop_words = self.get_stop_token()
         stop_words_ids = [
             self.tokenizer(stop_word, return_tensors="pt", add_special_tokens=False)[
@@ -111,7 +113,7 @@ class Agent:
         all_scores = []
         used_docids = {}
         pattern = r'\[DOCS\].*?\[/DOCS\]'
-        query_pattern = r'\[SEARCH\].*?\[/SEARCH\]'
+        query_pattern = r'\[SEARCH\](.*?)\[/SEARCH\]'
         if self.add_instruction:
             instruction= "Given the user query, provide a long answer that tackles different related aspects. To construct your answer, you will alternate between generating a subquery between [SEARCH][/SEARCH] tokens that describes what you will talk about, then use the provided doucments [DOCS][/DOCS] to generate an answer to the subquery and cite the documents you use. Repeat the process until the query is fully answered. Use your generated answer to generate the next subquery based on what you intend to tackle next. The subqueries should be diverse and different from previous ones and allow you to gather new information."
             message = [{"role": "system", "content":instruction},{"role": "user", "content": question}]
@@ -170,10 +172,16 @@ class Agent:
                     cuurent_output = cuurent_output[:a_idx] +"[ANSWER]" + matches[0] +"[/ANSWER][ANSWER]"+matches[1]+"[/ANSWER]"
                     output = output[:last_gen] + cuurent_output
                     #print("cuurent output after editing:", cuurent_output)
-                    #print("output after editing:", output)
+                    #print("output after editing:", output)            
             last_gen = len(output)
             tool_id = self.detect_tool(cuurent_output)
             if tool_id is not None:
+                if self.add_user_query:
+                    matches = re.findall(query_pattern, cuurent_output, re.DOTALL)
+                    if len(matches):
+                        new_subquery = "[SEARCH]"+question+" "+matches[-1]+"[/SEARCH]"
+                        cuurent_output=re.sub(query_pattern,new_subquery,cuurent_output)
+                        print("adding user query :  cuurent_output")
                 start = output.rfind(self.tools[tool_id].start_token)
                 if start == -1:
                     break 
@@ -207,6 +215,10 @@ class Agent:
                 else:
                     ### without retrieval
                     inputs = output + f"\n[DOCS] {[]} [/DOCS]\n"
+                if self.add_user_query:
+                    if len(matches):
+                        inputs=inputs.replace(new_subquery,"[SEARCH]"+matches[-1]+"[/SEARCH]")
+                        print("readjusting  query :  cuurent_output")
             else:
                 if self.adjusted:
                     inputs = output
