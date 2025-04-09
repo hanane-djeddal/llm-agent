@@ -129,6 +129,16 @@ def main():
         default =None,
         help="Config to pass to the generator",
     )
+    parser.add_argument(
+        "--diverse_query_only",
+        action="store_true",
+        help="Only apply diversity config to query",
+    )
+    parser.add_argument(
+        "--add_user_query",
+        action="store_true",
+        help="adding user query to the subqueries",
+    )    
     args = parser.parse_args()
     results_path = os.environ['WORK'] +"/llm-agent/llama13/" 
     results_dir = args.output_dir if args.output_dir else results_path
@@ -138,6 +148,7 @@ def main():
     logger.info(f"Loading Language model...{RAGAGENT_MODEL_NAME}")
     logger.info(f"Using HAGRID TEST SET")
     logger.info(f"Retrieval : BM25 + {args.ranker}")
+    logger.info(f"Appending user query to subqueries...{args.add_user_query}")
     tag = args.tag if args.tag else  args.ragnroll_model_name.split('/')[-1]
     tag = tag+"_instruction_prompt" if args.add_instruction else tag
     tag = tag +"_using_answer_for_retrieval_" if args.retrieve_with_answer else tag
@@ -151,6 +162,7 @@ def main():
         kwargs = json.loads(args.gen_config)
     else:
         kwargs = {"do_sample": True, "top_p": 0.5, "max_new_tokens": 1000}
+    logger.info(f"Generator config...{kwargs} to query only {args.diverse_query_only}")
     SEED = 42
     set_seed(SEED)
     dataset_name = "HAGRID"  # "HAGRID"   "ALCE"
@@ -174,7 +186,7 @@ def main():
         retireval_start_token ="[ANSWER]"
         retireval_end_token = "[/SEARCH]"
     else:
-        retireval_start_token = "[ANSWER]"
+        retireval_start_token = "[SEARCH]"
         retireval_end_token = "[/SEARCH]"
     tools = [
         SearchTool(
@@ -198,6 +210,8 @@ def main():
         manual_stop_words= False,
         without_query_gen = args.inference_variant == "without_query",
         add_instruction = args.add_instruction,
+        diverse_query_only = args.diverse_query_only,
+        add_user_query = args.add_user_query
     )
     print("Adjusted", False)
 
