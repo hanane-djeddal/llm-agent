@@ -46,6 +46,7 @@ class Agent:
         add_instruction = None,
         diverse_query_only = False,
         add_user_query = None,
+        add_answer=None,
     ):
 
         self.model = model
@@ -61,6 +62,7 @@ class Agent:
         self.add_instruction = add_instruction
         self.diverse_query_only = diverse_query_only
         self.add_user_query =add_user_query
+        self.add_answer = add_answer
         stop_words = self.get_stop_token()
         stop_words_ids = [
             self.tokenizer(stop_word, return_tensors="pt", add_special_tokens=False)[
@@ -144,7 +146,7 @@ class Agent:
             if output[-1] == "[":
                 output= output[:-1]
             #print("unmodified output for round ",i, ":", output)    
-            if i == 0:
+            if i == 0 and not self.add_user_query:#and self.add_answer:
                 output=output.replace("[SEARCH]","[ANSWER][SEARCH]")
             if self.adjusted:
                 #print("unmodified output for round ",i, ":", output)

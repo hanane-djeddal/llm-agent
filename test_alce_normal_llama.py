@@ -224,7 +224,8 @@ def test_alce_docs_gtr():
         manual_stop_words= False,
         add_instruction = args.add_instruction,
         diverse_query_only = args.diverse_query_only,
-        add_user_query = args.add_user_query
+        add_user_query = args.add_user_query,
+        add_answer = args.retrieve_with_answer,
     )
 
 
