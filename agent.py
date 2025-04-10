@@ -184,7 +184,7 @@ class Agent:
                     print("finding matches:",matches)
                     if len(matches):
                         new_subquery = "[SEARCH]"+question+" "+matches[-1]+"[/SEARCH]"
-                        output=re.sub(query_pattern,new_subquery,output)
+                        output=re.sub("[SEARCH]"+matches[-1]+"[/SEARCH]",new_subquery,output)
                         print("adding user query : ",output)
                 start = output.rfind(self.tools[tool_id].start_token)
                 if start == -1:
