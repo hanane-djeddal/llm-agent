@@ -264,7 +264,7 @@ class SearchToolWithinDocs(Tool):
         query = query.replace("[/ANSWER][SEARCH]","")
         citation_pattern =r'\[\d+(?:\s*[-,]\s*\d+)*\](?:\[\d+\])*'
         query=re.sub(citation_pattern, "", query) 
-        print("------ using as query:",query)
+        #print("------ using as query:",query)
         ranked_doc = self.ranker.rerank(query, initial_docs)[:k]
         scores = [i["score"] for i in ranked_doc]
         docs = []

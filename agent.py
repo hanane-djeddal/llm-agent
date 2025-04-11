@@ -115,7 +115,7 @@ class Agent:
         all_scores = []
         used_docids = {}
         pattern = r'\[DOCS\].*?\[/DOCS\]'
-        query_pattern = r'\[SEARCH\](.*?)\[/SEARCH\]'
+        query_pattern = r'(\[SEARCH\])(.*?)(\[/SEARCH\])'
         if self.add_instruction:
             instruction= "Given the user query, provide a long answer that tackles different related aspects. To construct your answer, you will alternate between generating a subquery between [SEARCH][/SEARCH] tokens that describes what you will talk about, then use the provided doucments [DOCS][/DOCS] to generate an answer to the subquery and cite the documents you use. Repeat the process until the query is fully answered. Use your generated answer to generate the next subquery based on what you intend to tackle next. The subqueries should be diverse and different from previous ones and allow you to gather new information."
             message = [{"role": "system", "content":instruction},{"role": "user", "content": question}]
@@ -180,11 +180,11 @@ class Agent:
             if tool_id is not None:
                 if self.add_user_query:
                     print(cuurent_output)
-                    matches = re.findall(query_pattern, cuurent_output, re.DOTALL)
+                    #matches = re.findall(query_pattern, cuurent_output, re.DOTALL)
 
                     # Find all matches
-                    matches = list(re.finditer(r'(\[SEARC\])(.*?)(\[/SEARCH\])', output))
-
+                    matches = list(re.finditer(query_pattern, output))
+                    #print("matches",matches)
                     if matches:
                         last_match = matches[-1]
                         start, end = last_match.span()
@@ -193,13 +193,13 @@ class Agent:
                         after = output[end:]
                         output = before + middle + after
                         appended_subquery = middle
-                        original_subquery = last_match.group(1) + question + last_match.group(2) +  last_match.group(3)
+                        original_subquery = last_match.group(1) + last_match.group(2) +  last_match.group(3)
                     #     print(modified_string)
                     # print("finding matches:",matches)
                     # if len(matches):
                     #     new_subquery = "[SEARCH]"+question+" "+matches[-1]+"[/SEARCH]"
                     #     output=re.sub("[SEARCH]"+matches[-1]+"[/SEARCH]",new_subquery,output)
-                        print("adding user query : ",output)
+                        #print("adding user query : ",output)
                 start = output.rfind(self.tools[tool_id].start_token)
                 if start == -1:
                     break 
@@ -236,7 +236,7 @@ class Agent:
                 if self.add_user_query:
                     if len(matches):
                         inputs=inputs.replace(appended_subquery,original_subquery)
-                        print("readjusting  query", inputs)
+                        #print("readjusting  query", inputs)
             else:
                 if self.adjusted:
                     inputs = output
