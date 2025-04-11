@@ -139,6 +139,18 @@ def main():
         action="store_true",
         help="adding user query to the subqueries",
     )    
+    parser.add_argument(
+        "--startindex",
+        type=int,
+        default=0,
+        help="Index to start iterations",
+    )
+    parser.add_argument(
+        "--stopindex",
+        type=int,
+        default=None,
+        help="Index to stop iterations",
+    )
     args = parser.parse_args()
     results_path = os.environ['WORK'] +"/llm-agent/llama13/" 
     results_dir = args.output_dir if args.output_dir else results_path
@@ -223,7 +235,7 @@ def main():
             dataset = json.load(f)
         query_column = "question"
 
-    start_idx = 0
+    start_idx = args.startindex
     if args.resume_from_file:
         with open(args.resume_from_file) as f:
             data_with_config = json.load(f)
@@ -296,16 +308,25 @@ def main():
             )
         if (nb_row+1) % 150 == 0:
             results_df = {"data": results}
-            results_file = results_dir + "intr_testHagrid_"+tag+"_"+str(args.nb_rounds)+"rounds_"+str(args.nb_docs)+"docs.json"  # "agent_hagrid_3doc_2rounds.csv"
+            results_file = results_dir + str(args.startindex)+"-"+"intr_testHagrid_"+tag+"_"+str(args.nb_rounds)+"rounds_"+str(args.nb_docs)+"docs.json"  # "agent_hagrid_3doc_2rounds.csv"
             with open(results_file, "w") as writer:
                 json.dump(results_df, writer)
+        if args.stopindex and args.stopindex == nb_row:
+            logger.info(f"Stoping after {args.stopindex - args.startindex + 1} iterartion, index {args.stopindex} finished")
+            break
     end = time.time()
 
     execution_time = (end - start) / 60
     results_df = {"data": results, "params":vars(args)}
-    results_file = results_dir + "all_testHagrid_"+tag+"_"+str(args.nb_rounds)+"rounds_"+str(args.nb_docs)+"docs.json"  # "agent_hagrid_3doc_2rounds.csv"
-    with open(results_file, "w") as writer:
-        json.dump(results_df, writer)
+    if args.stopindex:
+        #assert (args.stopindex == itera)
+        results_file = results_dir+str(args.startindex)+"-"+str(args.stopindex)+"intr_testHagrid_"+tag+"_"+str(args.nb_rounds)+"rounds_"+str(args.nb_docs)+"docs.json"  # "agent_hagrid_3doc_2rounds.csv"
+        with open(results_file, "w") as writer:
+            json.dump(results_df, writer)
+    else:
+        results_file = results_dir+"all_testHagrid_"+tag+"_"+str(args.nb_rounds)+"rounds_"+str(args.nb_docs)+"docs.json" 
+        with open(results_file, "w") as writer:
+            json.dump(results_df, writer)
 
     print("Result file:", results_file)
     print("execution_time:", execution_time)
