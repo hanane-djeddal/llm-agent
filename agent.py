@@ -181,10 +181,24 @@ class Agent:
                 if self.add_user_query:
                     print(cuurent_output)
                     matches = re.findall(query_pattern, cuurent_output, re.DOTALL)
-                    print("finding matches:",matches)
-                    if len(matches):
-                        new_subquery = "[SEARCH]"+question+" "+matches[-1]+"[/SEARCH]"
-                        output=re.sub("[SEARCH]"+matches[-1]+"[/SEARCH]",new_subquery,output)
+
+                    # Find all matches
+                    matches = list(re.finditer(r'(\[SEARC\])(.*?)(\[/SEARCH\])', output))
+
+                    if matches:
+                        last_match = matches[-1]
+                        start, end = last_match.span()
+                        before = output[:start]
+                        middle = last_match.group(1) + question + last_match.group(2) +  last_match.group(3)
+                        after = output[end:]
+                        output = before + middle + after
+                        appended_subquery = middle
+                        original_subquery = last_match.group(1) + question + last_match.group(2) +  last_match.group(3)
+                    #     print(modified_string)
+                    # print("finding matches:",matches)
+                    # if len(matches):
+                    #     new_subquery = "[SEARCH]"+question+" "+matches[-1]+"[/SEARCH]"
+                    #     output=re.sub("[SEARCH]"+matches[-1]+"[/SEARCH]",new_subquery,output)
                         print("adding user query : ",output)
                 start = output.rfind(self.tools[tool_id].start_token)
                 if start == -1:
@@ -221,7 +235,7 @@ class Agent:
                     inputs = output + f"\n[DOCS] {[]} [/DOCS]\n"
                 if self.add_user_query:
                     if len(matches):
-                        inputs=inputs.replace(new_subquery,"[SEARCH]"+matches[-1]+"[/SEARCH]")
+                        inputs=inputs.replace(appended_subquery,original_subquery)
                         print("readjusting  query", inputs)
             else:
                 if self.adjusted:
