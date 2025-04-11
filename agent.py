@@ -179,7 +179,7 @@ class Agent:
             tool_id = self.detect_tool(cuurent_output)
             if tool_id is not None:
                 if self.add_user_query:
-                    print(cuurent_output)
+                    #print(cuurent_output)
                     #matches = re.findall(query_pattern, cuurent_output, re.DOTALL)
 
                     # Find all matches
