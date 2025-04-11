@@ -1,13 +1,12 @@
 #!/bin/bash
-#SBATCH --job-name=a100_testhagrid_withoutq_###monot5 ###testalce_contrastive_queryonlyp3p1
+#SBATCH --job-name=a100_hagrid_withinstruct ###testhagrid_withoutq_###monot5 ###testalce_contrastive_queryonlyp3p1
 #SBATCH --output=jz_%j_%x.out    # nom du fichier de sortie
 #SBATCH --error=errjz_%j_%x.out  
-#SBATCH --gres=gpu:8   #for v account max is 4  
-#SBATCH --qos=qos_gpu_a100-dev
+#SBATCH --gres=gpu:8   #for v account max is 4  #SBATCH --qos=qos_gpu_a100-dev
 #SBATCH --ntasks-per-node=1
 #SBATCH --nodes=1
 #SBATCH --hint=nomultithread
-#SBATCH --time=2:00:00
+#SBATCH --time=20:00:00
 #SBATCH --constraint=a100
 #SBATCH --cpus-per-task=30
 #SBATCH --account=fiz@a100
@@ -49,4 +48,8 @@ cd /linkhome/rech/geniri01/udo61qq/Code/llm-agent/
 #CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 HF_DATASETS_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_EVALUATE_OFFLINE=1 python test_alce_normal_llama.py --nb_rounds 8 --query_file  /lustre/fswork/projects/rech/fiz/udo61qq/ALCE-data/asqa_eval_gtr_top100.json  --ragnroll_model_name  /lustre/fswork/projects/rech/fiz/udo61qq/llm-jz/llama/llama-2-chat-hagrid-att-seg-proba-rag-agent-13b  --add_instruction --retrieve_with_answer --tag monot5  --ranker MonoT5 --resume_from_file /lustre/fswork/projects/rech/fiz/udo61qq/llm-agent/llama13/intr_testasqa_monot5_instruction_prompt_using_answer_for_retrieval_8rounds_3docs.json
 #CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 HF_DATASETS_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_EVALUATE_OFFLINE=1 python test_alce_normal_llama.py --nb_rounds 8 --query_file /lustre/fswork/projects/rech/fiz/udo61qq/ALCE-data/asqa_eval_gtr_top100.json --ragnroll_model_name  /lustre/fswork/projects/rech/fiz/udo61qq/llm-jz/llama/llama-2-chat-hagrid-att-seg-proba-rag-agent-13b  --retrieve_with_answer --tag with_params_diverse_sampling  --gen_config  '{"top_k":40,"top_p":0.9,"temperature":0.85, "do_sample":true, "max_new_tokens": 1000}' --diverse_query_only --resume_from_file /lustre/fswork/projects/rech/fiz/udo61qq/llm-agent/llama13/intr_testasqa_with_params_diverse_sampling_using_answer_for_retrieval_diverse_query_only_8rounds_3docs.json
 #CUDA_VISIBLE_DEVICES=0,1,2,3 HF_DATASETS_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_EVALUATE_OFFLINE=1 python test_alce_normal_llama.py --nb_rounds 8 --query_file /lustre/fswork/projects/rech/fiz/udo61qq/ALCE-data/asqa_eval_gtr_top100.json --ragnroll_model_name  /lustre/fswork/projects/rech/fiz/udo61qq/llm-jz/llama/llama-2-chat-hagrid-att-seg-proba-rag-agent-13b  --retrieve_with_answer --tag with_params_contrastivesearch  --gen_config '{"penalty_alpha":0.6, "top_k":4, "max_new_tokens": 1000}' --startindex 271 --stopindex 280  ###--stopindex 280  --startindex 841 ###--startindex 841 --stopindex 948  841-870 -900-930-948 (0-30-60-90-120-150-180-210-240-270-280)
-CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 HF_DATASETS_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_EVALUATE_OFFLINE=1 python test_hagrid_llama_testInference.py  --nb_rounds 8 --ragnroll_model_name /lustre/fswork/projects/rech/fiz/udo61qq/llm-jz/llama/llama-2-chat-hagrid-att-seg-proba-rag-agent-13b --inference_variant empty_query  --resume_from_file intr_testHagrid_llama-2-chat-hagrid-att-seg-proba-rag-agent-13b_8rounds_3docsempty_query.json
+#CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 HF_DATASETS_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_EVALUATE_OFFLINE=1 python test_hagrid_llama_testInference.py  --nb_rounds 8 --ragnroll_model_name /lustre/fswork/projects/rech/fiz/udo61qq/llm-jz/llama/llama-2-chat-hagrid-att-seg-proba-rag-agent-13b --inference_variant empty_query  --resume_from_file intr_testHagrid_llama-2-chat-hagrid-att-seg-proba-rag-agent-13b_8rounds_3docsempty_query.json
+
+#### trained with instruct
+##CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 HF_DATASETS_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_EVALUATE_OFFLINE=1 python test_alce_normal_llama.py --nb_rounds 8 --query_file /lustre/fswork/projects/rech/fiz/udo61qq/ALCE-data/asqa_eval_gtr_top100.json  --ragnroll_model_name /lustre/fswork/projects/rech/fiz/udo61qq/llm-jz/llama/llama-2-chat-hagrid-att-segnli-instruct-rag-agent-13b  --add_instruction --retrieve_with_answer --resume_from_file  /lustre/fswork/projects/rech/fiz/udo61qq/llm-agent/llama13/intr_testasqa_llama-2-chat-hagrid-att-segnli-instruct-rag-agent-13b_instruction_prompt_using_answer_for_retrieval_8rounds_3docs.json
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 HF_DATASETS_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_EVALUATE_OFFLINE=1 python test_hagrid_llama.py --nb_rounds 8  --ragnroll_model_name /lustre/fswork/projects/rech/fiz/udo61qq/llm-jz/llama/llama-2-chat-hagrid-att-segnli-instruct-rag-agent-13b  --add_instruction --retrieve_with_answer
