@@ -178,7 +178,7 @@ class Agent:
                 **kwargs,
             )
             output = self.tokenizer.batch_decode(output)[0]
-            if i==0 and  self.without_query_gen:
+            if i==0 and  not self.without_query_gen:
                 special_token = "<|assistant|>"
                 parts = output.rsplit(special_token, 1)
                 output = "".join(parts) 
